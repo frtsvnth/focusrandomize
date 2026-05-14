@@ -5,7 +5,7 @@ export interface MechanicAdapterProps {
   targetTeam: Team;
   seed: number;
   reducedMotion: boolean;
-  onComplete: () => void;
+  onComplete: (winner?: Team) => void;
 }
 
 export const MECHANIC_META: Record<

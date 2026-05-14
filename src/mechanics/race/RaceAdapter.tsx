@@ -185,11 +185,11 @@ export default function RaceAdapter({
     <div
       style={{
         position: 'relative',
-        width: 'min(92vw, 760px)',
+        width: 'min(94vw, 1100px)',
         margin: '0 auto',
         background: 'linear-gradient(180deg, #3d8b37, #2d5a27, #1a3a16)',
-        borderRadius: 20,
-        padding: '8px 0',
+        borderRadius: 24,
+        padding: '12px 0',
         border: '4px solid #5a4a32',
         boxShadow: '0 0 40px rgba(34,211,238,0.06), inset 0 0 40px rgba(0,0,0,0.3)',
         overflow: 'hidden',
@@ -203,7 +203,7 @@ export default function RaceAdapter({
 
       <div style={{
         position: 'absolute', inset: 0,
-        backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 38px, rgba(255,255,255,0.03) 38px, rgba(255,255,255,0.03) 40px)',
+        backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 48px, rgba(255,255,255,0.03) 48px, rgba(255,255,255,0.03) 50px)',
         pointerEvents: 'none',
       }} />
 
@@ -211,7 +211,7 @@ export default function RaceAdapter({
         position: 'absolute',
         left: 0, right: 0, top: 4, bottom: 4,
         background: 'linear-gradient(90deg, rgba(139,119,80,0.12) 0%, rgba(139,119,80,0.06) 50%, rgba(139,119,80,0.12) 100%)',
-        borderRadius: 16,
+        borderRadius: 20,
         pointerEvents: 'none',
       }} />
 
@@ -248,19 +248,19 @@ export default function RaceAdapter({
             style={{
               display: 'flex',
               alignItems: 'center',
-              height: 38,
+              height: 48,
               position: 'relative',
-              paddingLeft: 6,
+              paddingLeft: 10,
               borderBottom: idx < teams.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
             }}
           >
             <span style={{
-              width: 22, textAlign: 'center', fontSize: 10, fontWeight: 700,
+              width: 28, textAlign: 'center', fontSize: 12, fontWeight: 700,
               color: '#8b9a6b', flexShrink: 0,
             }}>{idx + 1}</span>
 
             <span style={{
-              width: 78, fontSize: 10, fontWeight: 700, color: '#d1d5c7',
+              width: 100, fontSize: 13, fontWeight: 700, color: '#d1d5c7',
               flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               textShadow: '0 1px 2px rgba(0,0,0,0.5)',
             }}>{t.name}</span>
@@ -270,15 +270,17 @@ export default function RaceAdapter({
               style={{
                 position: 'absolute',
                 left: '3%',
-                top: 2,
-                fontSize: 26,
+                top: 4,
+                fontSize: 34,
                 zIndex: 3,
                 filter: isWinner ? 'drop-shadow(0 0 14px gold) drop-shadow(0 2px 4px rgba(0,0,0,0.5))' : 'drop-shadow(0 2px 3px rgba(0,0,0,0.4))',
                 transition: phase === 'racing' ? 'none' : 'left 0.15s linear',
               }}
               className={phase === 'racing' ? 'horse-racing' : ''}
             >
-              {emoji}
+              <span style={{ display: 'inline-block', transform: 'scaleX(-1)' }}>
+                {emoji}
+              </span>
               {t.id === targetId && phase === 'winner_pause' && (
                 <span style={{
                   position: 'absolute',
@@ -300,8 +302,8 @@ export default function RaceAdapter({
               ref={(el) => { trailRefs.current[idx] = el; }}
               style={{
                 position: 'absolute',
-                left: '118px',
-                top: 18,
+                left: '148px',
+                top: 24,
                 width: '0%',
                 height: 2,
                 background: `linear-gradient(90deg, ${t.color}88, ${t.color}22)`,
@@ -328,7 +330,7 @@ export default function RaceAdapter({
           backdropFilter: 'blur(2px)',
         }}>
           <div style={{
-            fontSize: countdown > 0 ? 96 : 44,
+            fontSize: countdown > 0 ? 128 : 56,
             fontWeight: 900,
             color: countdown > 0 ? '#fbbf24' : '#22c55e',
             textShadow: countdown > 0
@@ -354,14 +356,14 @@ export default function RaceAdapter({
           zIndex: 5,
         }}>
           <div style={{ textAlign: 'center', animation: 'reveal-in 0.6s ease-out' }}>
-            <div style={{ fontSize: 36, marginBottom: 4 }}>🏆</div>
+            <div style={{ fontSize: 48, marginBottom: 8 }}>🏆</div>
             <div style={{
-              fontSize: 22, fontWeight: 900, color: targetTeam.color,
+              fontSize: 30, fontWeight: 900, color: targetTeam.color,
               textShadow: `0 0 24px ${targetTeam.color}88`,
             }}>
               {targetTeam.name}
             </div>
-            <div style={{ fontSize: 13, color: '#fbbf24', marginTop: 4 }}>
+            <div style={{ fontSize: 16, color: '#fbbf24', marginTop: 4 }}>
               Победитель!
             </div>
           </div>

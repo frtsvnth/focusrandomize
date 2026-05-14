@@ -47,6 +47,7 @@ export default function StickmanAdapter({
       y: number;
       color: string;
       name: string;
+      teamId: string;
       hp: number;
       maxHp: number;
       alive: boolean;
@@ -64,12 +65,13 @@ export default function StickmanAdapter({
       dodgeChance: number;
       lastDodgeTime: number;
 
-      constructor(id: number, x: number, color: string, name: string, isTarget: boolean) {
+      constructor(id: number, x: number, color: string, name: string, teamId: string, isTarget: boolean) {
         this.id = id;
         this.x = x;
         this.y = GROUND_Y;
         this.color = color;
         this.name = name;
+        this.teamId = teamId;
         this.hp = isTarget ? FIGHT_CONFIG.baseHp * 3 : FIGHT_CONFIG.baseHp;
         this.maxHp = this.hp;
         this.alive = true;
@@ -299,7 +301,7 @@ export default function StickmanAdapter({
 
         ctx.rotate(-bodyLean);
         ctx.globalAlpha = alpha;
-        ctx.font = 'bold 15px Segoe UI';
+        ctx.font = 'bold 15px Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
         ctx.fillStyle = '#fff';
         ctx.textAlign = 'center';
         ctx.shadowColor = '#000';
@@ -369,7 +371,7 @@ export default function StickmanAdapter({
       for (const p of particles) {
         ctx.globalAlpha = Math.max(0, p.life);
         if (p.type === 'text') {
-          ctx.font = `bold ${p.size}px Segoe UI`;
+          ctx.font = `bold ${p.size}px Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
           ctx.fillStyle = p.color;
           ctx.textAlign = 'center';
           ctx.shadowColor = '#000';
@@ -422,7 +424,7 @@ export default function StickmanAdapter({
       for (let i = 0; i < count; i++) {
         const isTarget = teams[i].id === targetTeam.id;
         stickmen.push(
-          new Stickman(i, ARENA_LEFT + spacing * (i + 1), teams[i].color, teams[i].name, isTarget),
+          new Stickman(i, ARENA_LEFT + spacing * (i + 1), teams[i].color, teams[i].name, teams[i].id, isTarget),
         );
       }
     }
@@ -437,13 +439,35 @@ export default function StickmanAdapter({
         for (const s of stickmen) s.update(dt);
         updateParticles(dt);
 
-        const aliveCount = stickmen.filter((s: Stickman) => s.alive).length;
+        const aliveStickmen = stickmen.filter((s: Stickman) => s.alive);
+        const aliveCount = aliveStickmen.length;
 
-        if (!currentWinner && aliveCount <= 1 && stickmen.length > 1) {
-          currentWinner = stickmen.find((s: Stickman) => s.alive);
-          if (currentWinner) {
-            currentWinner.state = 'victory';
-            battleEndTime = Date.now();
+        if (!currentWinner && stickmen.length > 1) {
+          if (aliveCount === 0) {
+            const target = stickmen.find((s: Stickman) => s.teamId === targetTeam.id);
+            if (target) {
+              target.alive = true;
+              target.hp = Math.floor(target.maxHp * 0.5);
+              target.state = 'idle';
+              target.deathAnim = 0;
+              spawnTextParticle(target.x, target.y - 70, '💪 ЕЩЁ!', '#ffdd00');
+            }
+          } else if (aliveCount === 1) {
+            const lastAlive = aliveStickmen[0];
+            if (lastAlive.teamId === targetTeam.id) {
+              currentWinner = lastAlive;
+              currentWinner.state = 'victory';
+              battleEndTime = Date.now();
+            } else {
+              const target = stickmen.find((s: Stickman) => s.teamId === targetTeam.id);
+              if (target) {
+                target.alive = true;
+                target.hp = Math.floor(target.maxHp * 0.4);
+                target.state = 'idle';
+                target.deathAnim = 0;
+                spawnTextParticle(target.x, target.y - 70, '💪 ЕЩЁ!', '#ffdd00');
+              }
+            }
           }
         }
 
@@ -451,7 +475,7 @@ export default function StickmanAdapter({
           gameRunning = false;
           if (!completed) {
             completed = true;
-            onComplete();
+            onComplete(targetTeam);
           }
         }
       }

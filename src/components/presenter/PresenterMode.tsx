@@ -4,7 +4,7 @@ import { useSelection } from '../../hooks/useSelection';
 import { useSound } from '../../hooks/useSound';
 import { MECHANIC_META } from '../../mechanics/adapter';
 import { TeamBadge } from '../shared/TeamBadge';
-import type { MechanicId } from '../../domain/types';
+import type { MechanicId, Team } from '../../domain/types';
 
 const adapters: Record<MechanicId, React.LazyExoticComponent<React.FC<any>>> = {
   wheel: lazy(() => import('../../mechanics/wheel/WheelAdapter')),
@@ -40,7 +40,7 @@ export default function PresenterMode() {
     startSelection();
   }, [canPick, animating, playClick, startSelection]);
 
-  const handleAnimationComplete = useCallback(() => {
+  const handleAnimationComplete = useCallback((_winner?: Team) => {
     playWin();
     setAnimating(false);
   }, [playWin]);
@@ -104,7 +104,7 @@ export default function PresenterMode() {
           </div>
           <div>
             <h1 style={{ margin: 0, fontSize: 22, color: '#fff', fontWeight: 800, letterSpacing: -0.5 }}>
-              Sprint Review Show
+              Focus Randomizer
             </h1>
             <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
               {state.session.isActive ? 'Сессия активна' : 'Нет активной сессии'}

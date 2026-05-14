@@ -14,6 +14,7 @@ const adapters: Record<MechanicId, React.LazyExoticComponent<React.FC<any>>> = {
   race: lazy(() => import('../../mechanics/race/RaceAdapter')),
   claw: lazy(() => import('../../mechanics/claw/ClawAdapter')),
   cards: lazy(() => import('../../mechanics/cards/CardsAdapter')),
+  stickman: lazy(() => import('../../mechanics/stickman/StickmanAdapter')),
 };
 
 export default function PresenterMode() {

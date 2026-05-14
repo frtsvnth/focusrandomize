@@ -26,7 +26,8 @@ export type MechanicId =
   | 'slot'
   | 'race'
   | 'claw'
-  | 'cards';
+  | 'cards'
+  | 'stickman';
 
 export interface Session {
   activeTeamIds: string[];

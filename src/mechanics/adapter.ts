@@ -19,4 +19,5 @@ export const MECHANIC_META: Record<
   race: { label: 'Скачки', description: 'Кто первым к финишу' },
   claw: { label: 'Хватайка', description: 'Захватите капсулу' },
   cards: { label: 'Тайные карты', description: 'Откройте одну' },
+  stickman: { label: 'Битва стикменов', description: 'Сражайтесь до победы' },
 };

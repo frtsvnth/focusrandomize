@@ -5,6 +5,9 @@ import { shuffleWithSeed } from '../../utils/seededRandom';
 const CARD_W = 80;
 const CARD_H = 116;
 const MAX_PER_ROW = 8;
+const GAP = 8;
+
+type Phase = 'dealing' | 'revealing' | 'winner';
 
 export default function CardsAdapter({
   teams,
@@ -23,36 +26,6 @@ export default function CardsAdapter({
     return [...withoutTarget, targetTeam.id];
   }, [order, targetTeam]);
 
-  const [revealedSet, setRevealedSet] = useState<Set<string>>(new Set());
-  const [winnerMoment, setWinnerMoment] = useState(false);
-
-  useEffect(() => {
-    let stopped = false;
-    const stagger = reducedMotion ? 30 : 200;
-    const delay = reducedMotion ? 60 : 300;
-    const flipDuration = reducedMotion ? 0 : 600;
-
-    revealOrder.forEach((id, i) => {
-      setTimeout(() => {
-        if (stopped) return;
-        setRevealedSet((prev) => new Set([...prev, id]));
-      }, i * stagger + delay);
-    });
-
-    const lastCardFlipStart = (revealOrder.length - 1) * stagger + delay;
-    const winnerDelay = lastCardFlipStart + flipDuration + (reducedMotion ? 100 : 800);
-
-    const winnerTimer = setTimeout(() => {
-      if (stopped) return;
-      setWinnerMoment(true);
-      setTimeout(() => {
-        if (!stopped) onComplete();
-      }, reducedMotion ? 100 : 1500);
-    }, winnerDelay);
-
-    return () => { stopped = true; clearTimeout(winnerTimer); };
-  }, [revealOrder, reducedMotion, onComplete]);
-
   const rows: string[][] = useMemo(() => {
     const result: string[][] = [];
     for (let i = 0; i < revealOrder.length; i += MAX_PER_ROW) {
@@ -61,9 +34,84 @@ export default function CardsAdapter({
     return result;
   }, [revealOrder]);
 
-  const colsInFirstRow = rows[0]?.length ?? 1;
-  const cardW = Math.min(CARD_W, Math.max(56, (600 - (colsInFirstRow - 1) * 8) / colsInFirstRow));
+  const firstRowLen = rows[0]?.length ?? 1;
+  const cardW = Math.min(CARD_W, Math.max(56, (600 - (firstRowLen - 1) * GAP) / firstRowLen));
   const cardH = cardW * (CARD_H / CARD_W);
+  const firstRowWidth = firstRowLen * cardW + (firstRowLen - 1) * GAP;
+  const deckOffsetX = -(firstRowWidth / 2 + cardW / 2 + 20);
+
+  const [phase, setPhase] = useState<Phase>(reducedMotion ? 'revealing' : 'dealing');
+  const [dealProgress, setDealProgress] = useState(-1);
+  const [revealedSet, setRevealedSet] = useState<Set<string>>(new Set());
+  const [winnerMoment, setWinnerMoment] = useState(false);
+
+  useEffect(() => {
+    if (phase !== 'dealing') return;
+    let stopped = false;
+    const stagger = 60;
+    const timeouts: ReturnType<typeof setTimeout>[] = [];
+
+    for (let i = 0; i < revealOrder.length; i++) {
+      const t = setTimeout(() => {
+        if (stopped) return;
+        setDealProgress(i);
+      }, i * stagger);
+      timeouts.push(t);
+    }
+
+    const transitionTimer = setTimeout(() => {
+      if (stopped) return;
+      setPhase('revealing');
+    }, (revealOrder.length - 1) * stagger + 350);
+    timeouts.push(transitionTimer);
+
+    return () => {
+      stopped = true;
+      timeouts.forEach(clearTimeout);
+    };
+  }, [phase, revealOrder]);
+
+  useEffect(() => {
+    if (phase !== 'revealing') return;
+    let stopped = false;
+    const stagger = reducedMotion ? 30 : 200;
+    const delay = reducedMotion ? 30 : 200;
+    const flipDuration = reducedMotion ? 0 : 600;
+    const timeouts: ReturnType<typeof setTimeout>[] = [];
+
+    revealOrder.forEach((id, i) => {
+      const t = setTimeout(() => {
+        if (stopped) return;
+        setRevealedSet((prev) => new Set([...prev, id]));
+      }, i * stagger + delay);
+      timeouts.push(t);
+    });
+
+    const lastFlipStart = (revealOrder.length - 1) * stagger + delay;
+    const winnerDelay = lastFlipStart + flipDuration + (reducedMotion ? 100 : 800);
+
+    const winnerTimer = setTimeout(() => {
+      if (stopped) return;
+      setPhase('winner');
+      setWinnerMoment(true);
+      const endTimer = setTimeout(() => {
+        if (!stopped) onComplete();
+      }, reducedMotion ? 100 : 1500);
+      timeouts.push(endTimer);
+    }, winnerDelay);
+    timeouts.push(winnerTimer);
+
+    return () => {
+      stopped = true;
+      timeouts.forEach(clearTimeout);
+    };
+  }, [phase, revealOrder, reducedMotion, onComplete]);
+
+  const flatIndex = (ri: number, ci: number) => {
+    let idx = 0;
+    for (let r = 0; r < ri; r++) idx += rows[r].length;
+    return idx + ci;
+  };
 
   return (
     <div
@@ -75,17 +123,51 @@ export default function CardsAdapter({
         gap: 10,
         perspective: 1200,
         padding: '4px 0',
+        position: 'relative',
       }}
     >
+      {/* Deck visual during dealing */}
+      {phase === 'dealing' && (
+        <div
+          style={{
+            position: 'absolute',
+            left: `calc(50% + ${deckOffsetX}px)`,
+            top: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: cardW + 8,
+            height: cardH + 8,
+            borderRadius: 12,
+            background: 'linear-gradient(145deg, #1a1f3a, #0d1025)',
+            border: '2px solid rgba(255,255,255,0.08)',
+            zIndex: -2,
+            opacity: 0.5,
+            boxShadow: '2px 2px 8px rgba(0,0,0,0.5)',
+          }}
+        />
+      )}
+
       {rows.map((row, ri) => (
         <div
           key={ri}
-          style={{ display: 'flex', gap: 8, justifyContent: 'center' }}
+          style={{
+            display: 'flex',
+            gap: GAP,
+            justifyContent: 'center',
+            position: 'relative',
+          }}
         >
-          {row.map((id) => {
+          {row.map((id, ci) => {
             const team = teams.find((t) => t.id === id)!;
             const revealed = revealedSet.has(id);
             const isWinner = winnerMoment && id === targetTeam.id;
+            const dealt = phase !== 'dealing' || flatIndex(ri, ci) <= dealProgress;
+
+            const transition =
+              phase === 'dealing'
+                ? 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)'
+                : reducedMotion
+                ? 'none'
+                : 'transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)';
 
             return (
               <div
@@ -95,10 +177,10 @@ export default function CardsAdapter({
                   height: cardH,
                   position: 'relative',
                   transformStyle: 'preserve-3d',
-                  transform: revealed ? 'rotateY(180deg)' : 'rotateY(0deg)',
-                  transition: reducedMotion
-                    ? 'none'
-                    : 'transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
+                  transform: revealed
+                    ? 'rotateY(180deg)'
+                    : `translateX(${dealt ? 0 : deckOffsetX}px)`,
+                  transition,
                   borderRadius: 10,
                   flexShrink: 0,
                   boxShadow: isWinner
@@ -106,6 +188,7 @@ export default function CardsAdapter({
                     : revealed
                     ? `0 0 10px ${team.color}33, 0 4px 12px rgba(0,0,0,0.35)`
                     : '0 3px 8px rgba(0,0,0,0.4)',
+                  zIndex: phase === 'dealing' ? (dealt ? 2 : -1) : 1,
                 }}
               >
                 {/* Back */}

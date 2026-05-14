@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MechanicAdapterProps } from '../adapter';
-import { mulberry32 } from '../../utils/seededRandom';
 
 type Phase = 'countdown' | 'racing' | 'winner_pause' | 'finished';
 
 export default function RaceAdapter({
   teams,
   targetTeam,
-  seed,
   reducedMotion,
   onComplete,
 }: MechanicAdapterProps) {
@@ -21,31 +19,14 @@ export default function RaceAdapter({
   const [phase, setPhase] = useState<Phase>('countdown');
   const [countdown, setCountdown] = useState(3);
 
-  const { speeds, stumbleSchedule } = useMemo(() => {
-    const rand = mulberry32(seed);
+  const speeds = useMemo(() => {
     const speedMap: Record<string, number> = {};
     for (const t of teams) {
-      const base = 0.04 + rand() * 0.08;
-      speedMap[t.id] = base;
+      speedMap[t.id] = 0.3;
     }
-
-    const stumbleRand = mulberry32(seed + 777);
-    const stumbleMap: Record<string, { start: number; duration: number }[]> = {};
-    for (const t of teams) {
-      if (t.id === targetId) continue;
-      const count = 1 + Math.floor(stumbleRand() * 3);
-      const events: { start: number; duration: number }[] = [];
-      for (let i = 0; i < count; i++) {
-        events.push({
-          start: 120 + stumbleRand() * 300,
-          duration: 20 + stumbleRand() * 30,
-        });
-      }
-      stumbleMap[t.id] = events;
-    }
-
-    return { speeds: speedMap, stumbleSchedule: stumbleMap };
-  }, [teams, targetId, seed]);
+    speedMap[targetId] = 0.3 * 1.05;
+    return speedMap;
+  }, [teams, targetId]);
 
   const horseEmojis = ['🐴', '🐎', '🦄', '🏇', '🐴', '🐎', '🦄', '🏇', '🐴', '🐎'];
 
@@ -106,39 +87,17 @@ export default function RaceAdapter({
           continue;
         }
 
-        let speed = speeds[t.id] * (0.8 + Math.random() * 0.6);
+        let speed = speeds[t.id] * (0.85 + Math.random() * 0.3);
         const frame_ = frame;
 
-        if (t.id !== targetId) {
-          const stumbles = stumbleSchedule[t.id] || [];
-          for (const s of stumbles) {
-            if (frame_ >= s.start && frame_ < s.start + s.duration) {
-              speed *= 0.5;
-              break;
-            }
-          }
-          if (state[t.id] > 82) {
-            const slowdown = (state[t.id] - 82) / 8;
-            speed *= 1 - slowdown * 0.8;
-          }
-        }
-
-        if (t.id === targetId && state[t.id] > 78) {
-          const progress = (state[t.id] - 78) / 13;
-          speed *= 1 + progress * 1.4;
-        }
-
-        if (frame_ < 30) {
-          speed *= frame_ / 30;
+        if (frame_ < 20) {
+          speed *= frame_ / 20;
         }
 
         state[t.id] += speed;
-        if (t.id === targetId && state[t.id] >= 91) {
+        if (state[t.id] >= 91) {
           state[t.id] = 91;
-          winner = true;
-        }
-        if (t.id !== targetId && state[t.id] >= 88) {
-          state[t.id] = 88;
+          if (t.id === targetId) winner = true;
         }
       }
 
@@ -176,7 +135,7 @@ export default function RaceAdapter({
       clearInterval(cdTimer);
       if (racingActive) cancelAnimationFrame(animId);
     };
-  }, [teams, targetId, speeds, stumbleSchedule, reducedMotion, onComplete]);
+  }, [teams, targetId, speeds, reducedMotion, onComplete]);
 
   useEffect(() => {
     if (phase === 'finished') {

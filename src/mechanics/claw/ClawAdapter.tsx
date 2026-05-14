@@ -2,6 +2,16 @@ import { useEffect, useMemo, useState } from 'react';
 import type { MechanicAdapterProps } from '../adapter';
 import { mulberry32 } from '../../utils/seededRandom';
 
+const DIAM = 80;
+const CW = 660;
+const CH = 440;
+
+function overlap(x1: number, y1: number, x2: number, y2: number): boolean {
+  const dx = (x1 / 100) * CW - (x2 / 100) * CW;
+  const dy = (y1 / 100) * CH - (y2 / 100) * CH;
+  return Math.hypot(dx, dy) < DIAM + 4;
+}
+
 export default function ClawAdapter({
   teams,
   targetTeam,
@@ -17,10 +27,18 @@ export default function ClawAdapter({
   const teamPositions = useMemo(() => {
     const positions: { x: number; y: number }[] = [];
     for (let i = 0; i < teams.length; i++) {
-      positions.push({
-        x: 8 + rand() * 84,
-        y: 20 + rand() * 60,
-      });
+      for (let attempt = 0; attempt < 100; attempt++) {
+        const x = 8 + rand() * 84;
+        const y = 20 + rand() * 60;
+        const ok = positions.every((p) => !overlap(x, y, p.x, p.y));
+        if (ok) {
+          positions.push({ x, y });
+          break;
+        }
+        if (attempt === 99) {
+          positions.push({ x, y });
+        }
+      }
     }
     return positions;
   }, [rand, teams.length]);
@@ -77,6 +95,12 @@ export default function ClawAdapter({
   }, [wiggles, targetPos, reducedMotion, onComplete]);
 
   const cableHeight = Math.max(0, pos.y * 4.4 - 27);
+  const capsuleX = phase === 'lift' ? pos.x : targetPos.x;
+  const capsuleY = phase === 'lift' ? pos.y + 6 : targetPos.y;
+
+  const transition = reducedMotion
+    ? 'none'
+    : 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)';
 
   return (
     <div
@@ -123,7 +147,7 @@ export default function ClawAdapter({
               fontWeight: 800,
               fontSize: 13,
               opacity: hidden ? 0 : 1,
-              transition: 'opacity 0.35s',
+              transition: 'opacity 0.35s, left 0.6s cubic-bezier(0.4, 0, 0.2, 1), top 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
               border: '2px solid rgba(255,255,255,0.12)',
               textAlign: 'center',
               padding: 4,
@@ -158,7 +182,7 @@ export default function ClawAdapter({
           left: `${pos.x}%`,
           top: `${pos.y}%`,
           transform: 'translate(-50%, -50%)',
-          transition: reducedMotion ? 'none' : 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
+          transition,
           zIndex: 10,
         }}
       >
@@ -192,14 +216,16 @@ export default function ClawAdapter({
             />
           ))}
         </div>
+      </div>
 
-        {(phase === 'grab' || phase === 'lift') && (
-          <div style={{
+      {(phase === 'grab' || phase === 'lift') && (
+        <div
+          style={{
             position: 'absolute',
-            top: '100%',
-            left: '50%',
-            transform: 'translate(-50%, 0)',
-            marginTop: 4,
+            left: `${capsuleX}%`,
+            top: `${capsuleY}%`,
+            transform: 'translate(-50%, -50%)',
+            transition,
             width: 72,
             height: 72,
             borderRadius: '50%',
@@ -216,12 +242,13 @@ export default function ClawAdapter({
             textAlign: 'center',
             padding: 4,
             lineHeight: 1.2,
-          }}>
-            {targetTeam.logo && <span style={{ fontSize: 18 }}>{targetTeam.logo}</span>}
-            {targetTeam.name}
-          </div>
-        )}
-      </div>
+            zIndex: 15,
+          }}
+        >
+          {targetTeam.logo && <span style={{ fontSize: 18 }}>{targetTeam.logo}</span>}
+          {targetTeam.name}
+        </div>
+      )}
     </div>
   );
 }

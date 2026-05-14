@@ -23,15 +23,12 @@ export default function PresenterMode() {
     useSelection();
   const { playClick, playWin } = useSound();
   const [animating, setAnimating] = useState(false);
+  const [historyVisible, setHistoryVisible] = useState(true);
 
   const activeTeams = state.masterTeams.filter((t) =>
     state.session.activeTeamIds.includes(t.id)
   );
-  const poolTeams = isRevealing && lastResult
-    ? state.masterTeams.filter((t) =>
-        state.session.activeTeamIds.includes(t.id) || t.id === lastResult.team.id
-      )
-    : activeTeams;
+
   const historyTeams = state.session.history
     .map((h) => state.masterTeams.find((t) => t.id === h.teamId))
     .filter((t): t is NonNullable<typeof t> => !!t);
@@ -72,11 +69,12 @@ export default function PresenterMode() {
   return (
     <div
       style={{
-        minHeight: '100vh',
+        height: '100vh',
         display: 'flex',
         flexDirection: 'column',
-        padding: '28px 32px',
-        gap: 24,
+        padding: '28px 32px 20px',
+        gap: 16,
+        overflow: 'hidden',
       }}
     >
       {/* Header */}
@@ -85,6 +83,7 @@ export default function PresenterMode() {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
+          flexShrink: 0,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -112,7 +111,19 @@ export default function PresenterMode() {
             </div>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => setHistoryVisible((v) => !v)}
+            style={{
+              background: 'rgba(255,255,255,0.06)',
+              color: historyVisible ? 'var(--accent)' : '#64748b',
+              padding: '10px 14px',
+              fontSize: 16,
+            }}
+            title={historyVisible ? 'Скрыть историю' : 'Показать историю'}
+          >
+            {historyVisible ? '📋' : '📭'}
+          </button>
           <button
             onClick={() => dispatch({ type: 'SET_SETTINGS', payload: { soundEnabled: !state.settings.soundEnabled } })}
             style={{
@@ -135,7 +146,7 @@ export default function PresenterMode() {
       </div>
 
       {/* Mechanic tabs */}
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', flexShrink: 0 }}>
         {(Object.keys(MECHANIC_META) as MechanicId[]).map((m) => (
           <button
             key={m}
@@ -158,7 +169,7 @@ export default function PresenterMode() {
         ))}
       </div>
 
-      {/* Stage */}
+      {/* Stage - fills remaining space */}
       <div
         style={{
           flex: 1,
@@ -166,8 +177,9 @@ export default function PresenterMode() {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 28,
+          gap: 20,
           position: 'relative',
+          minHeight: 0,
         }}
       >
         {isRevealing && lastResult ? (
@@ -177,7 +189,7 @@ export default function PresenterMode() {
             </div>
           }>
             <MechanicComponent
-              teams={poolTeams}
+              teams={activeTeams}
               targetTeam={lastResult.team}
               seed={lastResult.animationHint.seed}
               reducedMotion={state.settings.reducedMotion}
@@ -290,62 +302,65 @@ export default function PresenterMode() {
         </div>
       )}
 
-      {/* Footer info */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: 16,
-        }}
-      >
-        <div className="card">
-          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 700 }}>
-            Осталось ({activeTeams.length})
+      {/* Footer info - collapsible */}
+      {historyVisible && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 16,
+            flexShrink: 0,
+          }}
+        >
+          <div className="card">
+            <div style={{ fontSize: 11, color: '#64748b', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 700 }}>
+              Осталось ({activeTeams.length})
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+              {activeTeams.map((t) => (
+                <div
+                  key={t.id}
+                  style={{
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid rgba(255,255,255,0.06)',
+                    borderRadius: 10,
+                    padding: '6px 12px',
+                  }}
+                >
+                  <TeamBadge team={t} size="sm" />
+                </div>
+              ))}
+            </div>
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-            {activeTeams.map((t) => (
-              <div
-                key={t.id}
-                style={{
-                  background: 'rgba(255,255,255,0.04)',
-                  border: '1px solid rgba(255,255,255,0.06)',
-                  borderRadius: 10,
-                  padding: '6px 12px',
-                }}
-              >
-                <TeamBadge team={t} size="sm" />
-              </div>
-            ))}
+          <div className="card">
+            <div style={{ fontSize: 11, color: '#64748b', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 700 }}>
+              История
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {historyTeams.length === 0 && (
+                <div style={{ color: '#475569', fontSize: 13 }}>Пока никто не выступал</div>
+              )}
+              {historyTeams.map((t, i) => (
+                <div key={`${t.id}-${i}`} style={{ fontSize: 13, color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 22,
+                    height: 22,
+                    borderRadius: 6,
+                    background: 'rgba(255,255,255,0.06)',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: '#94a3b8',
+                  }}>{i + 1}</span>
+                  <TeamBadge team={t} size="sm" />
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-        <div className="card">
-          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 700 }}>
-            История
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {historyTeams.length === 0 && (
-              <div style={{ color: '#475569', fontSize: 13 }}>Пока никто не выступал</div>
-            )}
-            {historyTeams.map((t, i) => (
-              <div key={`${t.id}-${i}`} style={{ fontSize: 13, color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: 22,
-                  height: 22,
-                  borderRadius: 6,
-                  background: 'rgba(255,255,255,0.06)',
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: '#94a3b8',
-                }}>{i + 1}</span>
-                <TeamBadge team={t} size="sm" />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

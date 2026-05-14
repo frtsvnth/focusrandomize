@@ -120,6 +120,16 @@ input:focus, select:focus, textarea:focus {
   animation: reveal-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
+.horse-racing {
+  animation: horse-gallop 0.25s ease-in-out infinite alternate;
+}
+
+@keyframes horse-gallop {
+  0% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-3px) scale(1.05); }
+  100% { transform: translateY(1px) scale(0.98); }
+}
+
 ::-webkit-scrollbar {
   width: 8px;
 }

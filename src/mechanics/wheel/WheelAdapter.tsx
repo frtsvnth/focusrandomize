@@ -16,12 +16,12 @@ export default function WheelAdapter({
 
   const targetRotation = useMemo(() => {
     const idx = teams.findIndex((t) => t.id === targetTeam.id);
-    // Center of sector i: i * sectorAngle + sectorAngle / 2 (counter-clockwise from right)
-    // We want this sector center to align with the arrow at top (270° = -90° from right)
-    // After clockwise rotation by θ: sector at angle α ends up at α - θ
-    // Want α - θ = -90°, so θ = α + 90°
+    // Center of sector i (clockwise from right): i * sectorAngle + sectorAngle / 2
+    // Clockwise rotation R moves a point at local angle α to global angle α + R
+    // Arrow is at 270° (top). We want: centerOfTarget + R ≡ 270 (mod 360)
+    // So: R ≡ 270 - centerOfTarget
     const centerOfTarget = idx * sectorAngle + sectorAngle / 2;
-    const base = centerOfTarget + 90;
+    const base = 270 - centerOfTarget;
     const extraSpins = 5 + (seed % 5);
     const jitter = (seed % 100) / 100;
     const jitterDeg = (jitter - 0.5) * (sectorAngle * 0.6);
@@ -60,6 +60,7 @@ export default function WheelAdapter({
           width: '100%',
           height: '100%',
           transform: `rotate(${rotation}deg)`,
+          transformOrigin: 'center',
           transition: spinning && !reducedMotion ? 'transform 4.2s cubic-bezier(0.15, 0, 0.15, 1)' : 'none',
         }}
       >

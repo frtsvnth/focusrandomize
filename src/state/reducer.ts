@@ -222,12 +222,6 @@ export function appReducer(state: AppState, action: Action): AppState {
       let next = consumePinnedNext(state);
       next = {
         ...next,
-        session: {
-          ...next.session,
-          activeTeamIds: next.session.activeTeamIds.filter(
-            (id) => id !== result.team.id
-          ),
-        },
         ui: {
           ...next.ui,
           lastResult: result,
@@ -241,20 +235,25 @@ export function appReducer(state: AppState, action: Action): AppState {
     }
     case 'CLEAR_REVEAL': {
       const lastResult = state.ui.lastResult;
-      const newHistory = lastResult
-        ? [
-            ...state.session.history,
-            {
-              teamId: lastResult.team.id,
-              reason: lastResult.reason,
-              timestamp: Date.now(),
-              stepIndex: state.session.history.length,
-            },
-          ]
-        : state.session.history;
+      if (!lastResult) return state;
+      const newHistory = [
+        ...state.session.history,
+        {
+          teamId: lastResult.team.id,
+          reason: lastResult.reason,
+          timestamp: Date.now(),
+          stepIndex: state.session.history.length,
+        },
+      ];
       return {
         ...state,
-        session: { ...state.session, history: newHistory },
+        session: {
+          ...state.session,
+          activeTeamIds: state.session.activeTeamIds.filter(
+            (id) => id !== lastResult.team.id
+          ),
+          history: newHistory,
+        },
         ui: { ...state.ui, isRevealing: false, lastResult: undefined },
       };
     }

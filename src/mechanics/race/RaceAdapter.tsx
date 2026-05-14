@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MechanicAdapterProps } from '../adapter';
 import { mulberry32 } from '../../utils/seededRandom';
+
+type Phase = 'countdown' | 'racing' | 'winner_pause' | 'finished';
 
 export default function RaceAdapter({
   teams,
@@ -10,63 +12,91 @@ export default function RaceAdapter({
   onComplete,
 }: MechanicAdapterProps) {
   const targetId = targetTeam.id;
+  const horseRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const trailRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const laneRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const positionsRef = useRef<Record<string, number>>({});
   const frameRef = useRef(0);
 
-  const speeds = useMemo(() => {
+  const [phase, setPhase] = useState<Phase>('countdown');
+  const [countdown, setCountdown] = useState(3);
+
+  const { speeds, stumbleSchedule } = useMemo(() => {
     const rand = mulberry32(seed);
-    const map: Record<string, number> = {};
+    const speedMap: Record<string, number> = {};
     let maxOther = 0;
     for (const t of teams) {
       const base = 0.04 + rand() * 0.08;
-      map[t.id] = base;
+      speedMap[t.id] = base;
       if (t.id !== targetId) maxOther = Math.max(maxOther, base);
     }
-    map[targetId] = maxOther + 0.03 + rand() * 0.05;
-    return map;
-  }, [teams, targetId, seed]);
+    speedMap[targetId] = maxOther + 0.03 + rand() * 0.05;
 
-  const stumbleSchedule = useMemo(() => {
-    const rand = mulberry32(seed + 777);
-    const result: Record<string, { start: number; duration: number }[]> = {};
+    const stumbleRand = mulberry32(seed + 777);
+    const stumbleMap: Record<string, { start: number; duration: number }[]> = {};
     for (const t of teams) {
       if (t.id === targetId) continue;
-      const count = Math.floor(rand() * 3);
+      const count = Math.floor(stumbleRand() * 3);
       const events: { start: number; duration: number }[] = [];
       for (let i = 0; i < count; i++) {
         events.push({
-          start: 100 + rand() * 350,
-          duration: 35 + rand() * 45,
+          start: 60 + stumbleRand() * 300,
+          duration: 30 + stumbleRand() * 50,
         });
       }
-      result[t.id] = events;
+      stumbleMap[t.id] = events;
     }
-    return result;
+
+    return { speeds: speedMap, stumbleSchedule: stumbleMap };
   }, [teams, targetId, seed]);
 
-  const [phase, setPhase] = useState<'countdown' | 'racing' | 'finished'>('countdown');
-  const [countdown, setCountdown] = useState(3);
-  const [positions, setPositions] = useState<Record<string, number>>(() => {
-    const init: Record<string, number> = {};
-    for (const t of teams) init[t.id] = 5;
-    return init;
-  });
+  const horseEmojis = ['🐴', '🐎', '🦄', '🏇', '🐴', '🐎', '🦄', '🏇', '🐴', '🐎'];
 
   useEffect(() => {
     if (reducedMotion) {
-      const fin: Record<string, number> = {};
-      for (const t of teams) fin[t.id] = t.id === targetId ? 90 : 50 + Math.random() * 30;
-      setPositions(fin);
-      setPhase('finished');
-      const to = setTimeout(onComplete, 600);
-      return () => clearTimeout(to);
+      for (const t of teams) {
+        positionsRef.current[t.id] = t.id === targetId ? 90 : 50 + Math.random() * 30;
+      }
+      const el = laneRefs.current[0]?.parentElement;
+      if (el) {
+        for (let i = 0; i < teams.length; i++) {
+          const horse = horseRefs.current[i];
+          if (horse) horse.style.left = `${positionsRef.current[teams[i].id]}%`;
+          const trail = trailRefs.current[i];
+          if (trail) trail.style.width = `${Math.max(0, positionsRef.current[teams[i].id] - 17)}%`;
+        }
+      }
+      setPhase('winner_pause');
+      const to1 = setTimeout(() => {
+        setPhase('finished');
+        const to2 = setTimeout(onComplete, 600);
+        return () => clearTimeout(to2);
+      }, 800);
+      return () => clearTimeout(to1);
     }
 
     const state: Record<string, number> = {};
-    for (const t of teams) state[t.id] = 5;
+    for (const t of teams) state[t.id] = 3;
+    positionsRef.current = state;
 
     let frame = 0;
     let animId = 0;
     let racingActive = false;
+
+    const updatePositions = () => {
+      for (let i = 0; i < teams.length; i++) {
+        const t = teams[i];
+        const pct = state[t.id];
+        const horse = horseRefs.current[i];
+        if (horse) {
+          horse.style.left = `${pct}%`;
+        }
+        const trail = trailRefs.current[i];
+        if (trail) {
+          trail.style.width = `${Math.max(0, pct - 17)}%`;
+        }
+      }
+    };
 
     const raceStep = () => {
       frame++;
@@ -74,35 +104,50 @@ export default function RaceAdapter({
       let winner = false;
 
       for (const t of teams) {
-        if (state[t.id] >= 90) continue;
+        if (state[t.id] >= 91) {
+          if (t.id === targetId) winner = true;
+          continue;
+        }
+
         let speed = speeds[t.id] * (0.8 + Math.random() * 0.4);
+        const frame_ = frame;
 
         if (t.id !== targetId) {
           const stumbles = stumbleSchedule[t.id] || [];
           for (const s of stumbles) {
-            if (frame >= s.start && frame < s.start + s.duration) {
-              speed *= 0.25;
+            if (frame_ >= s.start && frame_ < s.start + s.duration) {
+              speed *= 0.2;
               break;
             }
           }
         }
 
         if (t.id === targetId && state[t.id] > 50) {
-          speed *= 1 + ((state[t.id] - 50) / 40) * 0.9;
+          const progress = (state[t.id] - 50) / 40;
+          speed *= 1 + progress * 0.8;
+        }
+
+        if (frame_ < 30) {
+          speed *= frame_ / 30;
         }
 
         state[t.id] += speed;
-        if (state[t.id] >= 90) {
-          state[t.id] = 90;
+        if (state[t.id] >= 91) {
+          state[t.id] = 91;
           if (t.id === targetId) winner = true;
         }
       }
 
-      setPositions({ ...state });
+      updatePositions();
 
       if (winner) {
-        setPhase('finished');
-        setTimeout(onComplete, 1500);
+        setPhase('winner_pause');
+        setTimeout(() => {
+          setPhase('finished');
+        }, 2800);
+        racingActive = false;
+        cancelAnimationFrame(animId);
+        return;
       } else {
         animId = requestAnimationFrame(raceStep);
       }
@@ -115,13 +160,13 @@ export default function RaceAdapter({
     const cdTimer = setInterval(() => {
       cd--;
       setCountdown(cd);
-      if (cd <= 0) {
+      if (cd < 0) {
         clearInterval(cdTimer);
         racingActive = true;
         setPhase('racing');
         animId = requestAnimationFrame(raceStep);
       }
-    }, 800);
+    }, 900);
 
     return () => {
       clearInterval(cdTimer);
@@ -129,133 +174,147 @@ export default function RaceAdapter({
     };
   }, [teams, targetId, speeds, stumbleSchedule, reducedMotion, onComplete]);
 
-  const horseEmojis = ['🐴', '🐎', '🦄', '🏇', '🐴', '🐎', '🦄', '🏇', '🐴', '🐎'];
+  useEffect(() => {
+    if (phase === 'finished') {
+      const t = setTimeout(onComplete, 800);
+      return () => clearTimeout(t);
+    }
+  }, [phase, onComplete]);
 
   return (
     <div
-      ref={null}
       style={{
         position: 'relative',
-        width: 'min(90vw, 700px)',
+        width: 'min(92vw, 760px)',
         margin: '0 auto',
         background: 'linear-gradient(180deg, #3d8b37, #2d5a27, #1a3a16)',
         borderRadius: 20,
-        padding: '12px 0',
+        padding: '8px 0',
         border: '4px solid #5a4a32',
         boxShadow: '0 0 40px rgba(34,211,238,0.06), inset 0 0 40px rgba(0,0,0,0.3)',
         overflow: 'hidden',
       }}
     >
-      {/* Grass texture overlay */}
       <div style={{
         position: 'absolute', inset: 0,
         backgroundImage: 'radial-gradient(ellipse at 20% 50%, rgba(144,238,144,0.06) 0%, transparent 50%), radial-gradient(ellipse at 70% 30%, rgba(144,238,144,0.04) 0%, transparent 50%)',
         pointerEvents: 'none',
       }} />
 
-      {/* Lane dividers */}
       <div style={{
         position: 'absolute', inset: 0,
-        backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 42px, rgba(255,255,255,0.03) 42px, rgba(255,255,255,0.03) 44px)',
+        backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 38px, rgba(255,255,255,0.03) 38px, rgba(255,255,255,0.03) 40px)',
         pointerEvents: 'none',
       }} />
 
-      {/* Dirt track surface */}
       <div style={{
         position: 'absolute',
-        left: 0, right: 0, top: 6, bottom: 6,
-        background: 'linear-gradient(90deg, rgba(139,119,80,0.15) 0%, rgba(139,119,80,0.08) 50%, rgba(139,119,80,0.15) 100%)',
+        left: 0, right: 0, top: 4, bottom: 4,
+        background: 'linear-gradient(90deg, rgba(139,119,80,0.12) 0%, rgba(139,119,80,0.06) 50%, rgba(139,119,80,0.12) 100%)',
         borderRadius: 16,
         pointerEvents: 'none',
       }} />
 
-      {/* Start line */}
       <div style={{
         position: 'absolute',
-        left: '18%',
+        left: '10%',
         top: 0, bottom: 0,
         width: 3,
         background: 'repeating-linear-gradient(0deg, #fff 0px, #fff 6px, transparent 6px, transparent 12px)',
-        opacity: 0.25,
+        opacity: 0.3,
         pointerEvents: 'none',
+        zIndex: 1,
       }} />
 
-      {/* Finish line - checkerboard */}
       <div style={{
         position: 'absolute',
-        right: 20,
+        right: '6%',
         top: 0, bottom: 0,
-        width: 6,
-        background: 'repeating-linear-gradient(0deg, #fff 0px, #fff 8px, #111 8px, #111 16px)',
-        opacity: 0.55,
+        width: 8,
+        background: 'repeating-linear-gradient(0deg, #fff 0px, #fff 6px, #111 6px, #111 12px)',
+        opacity: 0.6,
         pointerEvents: 'none',
+        zIndex: 1,
       }} />
 
       {teams.map((t, idx) => {
-        const pct = positions[t.id] || 5;
-        const isWinner = phase === 'finished' && t.id === targetId;
+        const isWinner = phase !== 'countdown' && phase !== 'racing' && t.id === targetId;
         const emoji = t.logo || horseEmojis[idx % horseEmojis.length];
-        const isStumbling = !isWinner && phase === 'racing' && t.id !== targetId && (() => {
-          const stumbles = stumbleSchedule[t.id] || [];
-          for (const s of stumbles) {
-            if (frameRef.current >= s.start && frameRef.current < s.start + s.duration) return true;
-          }
-          return false;
-        })();
 
         return (
           <div
             key={t.id}
+            ref={(el) => { laneRefs.current[idx] = el; }}
             style={{
               display: 'flex',
               alignItems: 'center',
-              height: 42,
+              height: 38,
               position: 'relative',
-              paddingLeft: 8,
+              paddingLeft: 6,
               borderBottom: idx < teams.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
             }}
           >
-            {/* Lane number */}
             <span style={{
-              width: 26, textAlign: 'center', fontSize: 11, fontWeight: 700,
+              width: 22, textAlign: 'center', fontSize: 10, fontWeight: 700,
               color: '#8b9a6b', flexShrink: 0,
             }}>{idx + 1}</span>
-            {/* Team name */}
+
             <span style={{
-              width: 84, fontSize: 11, fontWeight: 700, color: '#d1d5c7',
+              width: 78, fontSize: 10, fontWeight: 700, color: '#d1d5c7',
               flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               textShadow: '0 1px 2px rgba(0,0,0,0.5)',
             }}>{t.name}</span>
-            {/* Horse + jockey */}
-            <div style={{
-              position: 'absolute',
-              left: `${pct}%`,
-              top: idx * 42 + 4,
-              transform: `translateX(-50%) ${isStumbling ? 'rotate(-8deg)' : ''}`,
-              fontSize: 28,
-              transition: reducedMotion ? 'none' : 'left 0.12s linear',
-              filter: isWinner ? 'drop-shadow(0 0 12px gold) drop-shadow(0 2px 4px rgba(0,0,0,0.5))' : 'drop-shadow(0 2px 3px rgba(0,0,0,0.4))',
-              zIndex: 2,
-            }}>
+
+            <div
+              ref={(el) => { horseRefs.current[idx] = el; }}
+              style={{
+                position: 'absolute',
+                left: '3%',
+                top: 2,
+                fontSize: 26,
+                zIndex: 3,
+                filter: isWinner ? 'drop-shadow(0 0 14px gold) drop-shadow(0 2px 4px rgba(0,0,0,0.5))' : 'drop-shadow(0 2px 3px rgba(0,0,0,0.4))',
+                transition: phase === 'racing' ? 'none' : 'left 0.15s linear',
+              }}
+              className={phase === 'racing' ? 'horse-racing' : ''}
+            >
               {emoji}
+              {t.id === targetId && phase === 'winner_pause' && (
+                <span style={{
+                  position: 'absolute',
+                  left: '50%',
+                  top: -18,
+                  transform: 'translateX(-50%)',
+                  fontSize: 10,
+                  color: '#fbbf24',
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap',
+                  textShadow: '0 0 8px rgba(251,191,36,0.8)',
+                }}>
+                  ⚡
+                </span>
+              )}
             </div>
-            {/* Color trail */}
-            <div style={{
-              position: 'absolute',
-              left: '118px',
-              top: idx * 42 + 4 + 16,
-              width: `${Math.max(0, pct - 17)}%`,
-              height: 2,
-              background: `linear-gradient(90deg, ${t.color}66, ${t.color}11)`,
-              borderRadius: 1,
-              opacity: 0.4,
-              pointerEvents: 'none',
-            }} />
+
+            <div
+              ref={(el) => { trailRefs.current[idx] = el; }}
+              style={{
+                position: 'absolute',
+                left: '118px',
+                top: 18,
+                width: '0%',
+                height: 2,
+                background: `linear-gradient(90deg, ${t.color}88, ${t.color}22)`,
+                borderRadius: 1,
+                opacity: 0.5,
+                pointerEvents: 'none',
+                transition: phase === 'racing' ? 'none' : 'width 0.15s linear',
+              }}
+            />
           </div>
         );
       })}
 
-      {/* Countdown overlay */}
       {phase === 'countdown' && (
         <div style={{
           position: 'absolute',
@@ -269,7 +328,7 @@ export default function RaceAdapter({
           backdropFilter: 'blur(2px)',
         }}>
           <div style={{
-            fontSize: countdown > 0 ? 96 : 48,
+            fontSize: countdown > 0 ? 96 : 44,
             fontWeight: 900,
             color: countdown > 0 ? '#fbbf24' : '#22c55e',
             textShadow: countdown > 0
@@ -283,27 +342,26 @@ export default function RaceAdapter({
         </div>
       )}
 
-      {/* Win overlay */}
-      {phase === 'finished' && (
+      {phase === 'winner_pause' && (
         <div style={{
           position: 'absolute',
           inset: 0,
-          background: 'rgba(0,0,0,0.65)',
+          background: 'rgba(0,0,0,0.3)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           borderRadius: 20,
-          zIndex: 10,
+          zIndex: 5,
         }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 40, marginBottom: 4 }}>🏆</div>
+          <div style={{ textAlign: 'center', animation: 'reveal-in 0.6s ease-out' }}>
+            <div style={{ fontSize: 36, marginBottom: 4 }}>🏆</div>
             <div style={{
-              fontSize: 26, fontWeight: 900, color: targetTeam.color,
+              fontSize: 22, fontWeight: 900, color: targetTeam.color,
               textShadow: `0 0 24px ${targetTeam.color}88`,
             }}>
               {targetTeam.name}
             </div>
-            <div style={{ fontSize: 14, color: '#fbbf24', marginTop: 4 }}>
+            <div style={{ fontSize: 13, color: '#fbbf24', marginTop: 4 }}>
               Победитель!
             </div>
           </div>

@@ -6,6 +6,7 @@ type Phase = 'countdown' | 'racing' | 'winner_pause' | 'finished';
 export default function RaceAdapter({
   teams,
   targetTeam,
+  seed,
   reducedMotion,
   onComplete,
 }: MechanicAdapterProps) {
@@ -20,13 +21,16 @@ export default function RaceAdapter({
   const [countdown, setCountdown] = useState(3);
 
   const speeds = useMemo(() => {
+    const base = 0.27;
     const speedMap: Record<string, number> = {};
+    const nonTarget = teams.filter(t => t.id !== targetId);
+    const outsiderId = nonTarget[Math.abs(seed) % nonTarget.length].id;
     for (const t of teams) {
-      speedMap[t.id] = 0.3;
+      speedMap[t.id] = t.id === outsiderId ? base * 0.85 : base;
     }
-    speedMap[targetId] = 0.3 * 1.05;
+    speedMap[targetId] = base * 1.05;
     return speedMap;
-  }, [teams, targetId]);
+  }, [teams, targetId, seed]);
 
   const horseEmojis = ['🐴', '🐎', '🦄', '🏇', '🐴', '🐎', '🦄', '🏇', '🐴', '🐎'];
 

@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react';
 import { useAppState } from '../../state/store';
 import { exportJSON, importJSON } from '../../state/persistence';
-import type { Team } from '../../domain/types';
+import { MECHANIC_META } from '../../mechanics/adapter';
+import type { Team, MechanicId } from '../../domain/types';
 
 function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -16,6 +17,7 @@ export default function AdminMode() {
   const { state, dispatch } = useAppState();
   const [pinInput, setPinInput] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  const [queueSelect, setQueueSelect] = useState('');
 
   const unlocked = state.ui.adminUnlocked || !state.settings.adminPin;
 
@@ -199,38 +201,142 @@ export default function AdminMode() {
 
           {/* Script Plan */}
           <div className="card" style={{ marginBottom: 24 }}>
-            <h2 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 700 }}>Сценарий очередности</h2>
+            <h2 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 700 }}>Очередь выступлений</h2>
             <div style={{ display: 'grid', gap: 14 }}>
+              {/* Visual queue list */}
               <div>
-                <label style={{ color: '#94a3b8', fontSize: 13, display: 'block', marginBottom: 6 }}>
-                  Полный порядок (ID команд через запятую)
+                <label style={{ color: '#94a3b8', fontSize: 13, display: 'block', marginBottom: 8 }}>
+                  Запланированный порядок
                 </label>
-                <input
-                  style={{ width: '100%' }}
-                  value={state.scriptPlan.fullOrder?.join(', ') ?? ''}
-                  onChange={(e) => {
-                    const ids = e.target.value.split(',').map((s) => s.trim()).filter(Boolean);
-                    dispatch({ type: 'SET_SCRIPT_PLAN', payload: { ...state.scriptPlan, fullOrder: ids.length ? ids : undefined } });
-                  }}
-                />
+                {state.scriptPlan.fullOrder && state.scriptPlan.fullOrder.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+                    {state.scriptPlan.fullOrder.map((id, idx) => {
+                      const team = state.masterTeams.find(t => t.id === id);
+                      return (
+                        <div
+                          key={`${id}-${idx}`}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            padding: '6px 10px',
+                            background: 'rgba(255,255,255,0.04)',
+                            borderRadius: 8,
+                            border: '1px solid rgba(255,255,255,0.06)',
+                          }}
+                        >
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: 22,
+                            height: 22,
+                            borderRadius: 6,
+                            background: 'rgba(255,255,255,0.08)',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: '#94a3b8',
+                            flexShrink: 0,
+                          }}>{idx + 1}</span>
+                          <span style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: '50%',
+                            background: team?.color ?? '#475569',
+                            flexShrink: 0,
+                          }} />
+                          <span style={{ flex: 1, fontSize: 13, color: '#e2e8f0' }}>
+                            {team ? team.name : <span style={{ color: '#ef4444' }}>?? {id.slice(0, 8)}…</span>}
+                          </span>
+                          <button
+                            onClick={() => {
+                              const next = state.scriptPlan.fullOrder!.filter((fid) => fid !== id);
+                              dispatch({
+                                type: 'SET_SCRIPT_PLAN',
+                                payload: { ...state.scriptPlan, fullOrder: next.length ? next : undefined },
+                              });
+                            }}
+                            style={{ background: 'transparent', color: '#ef4444', padding: '2px 6px', fontSize: 12, borderRadius: 4 }}
+                            title="Убрать из очереди"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div style={{ color: '#475569', fontSize: 13, marginBottom: 8 }}>
+                    Очередь не задана — команды будут выбираться случайно
+                  </div>
+                )}
               </div>
-              <div>
-                <label style={{ color: '#94a3b8', fontSize: 13, display: 'block', marginBottom: 6 }}>
-                  Фиксированные позиции (JSON: {'{'}&quot;1&quot;:&quot;teamId&quot;{'}'})
-                </label>
-                <input
-                  style={{ width: '100%' }}
-                  value={state.scriptPlan.fixedPositions ? JSON.stringify(state.scriptPlan.fixedPositions) : ''}
-                  onChange={(e) => {
-                    try {
-                      const obj = e.target.value ? JSON.parse(e.target.value) : undefined;
-                      dispatch({ type: 'SET_SCRIPT_PLAN', payload: { ...state.scriptPlan, fixedPositions: obj } });
-                    } catch {
-                      // ignore
-                    }
+
+              {/* Add team to end */}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <select
+                  value={queueSelect}
+                  onChange={(e) => setQueueSelect(e.target.value)}
+                  style={{ flex: 1 }}
+                >
+                  <option value="">-- Выберите команду --</option>
+                  {state.masterTeams
+                    .filter((t) => t.enabled)
+                    .filter((t) => !state.scriptPlan.fullOrder?.includes(t.id))
+                    .map((t) => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                </select>
+                <button
+                  onClick={() => {
+                    if (!queueSelect) return;
+                    dispatch({
+                      type: 'SET_SCRIPT_PLAN',
+                      payload: {
+                        ...state.scriptPlan,
+                        fullOrder: [...(state.scriptPlan.fullOrder ?? []), queueSelect],
+                      },
+                    });
+                    setQueueSelect('');
                   }}
-                />
+                  style={{ background: 'var(--accent)', color: '#020617', whiteSpace: 'nowrap' }}
+                >
+                  В конец очереди
+                </button>
               </div>
+
+              {/* Quick actions */}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {state.masterTeams
+                  .filter((t) => t.enabled)
+                  .filter((t) => !state.scriptPlan.fullOrder?.includes(t.id))
+                  .slice(0, 8)
+                  .map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => {
+                        dispatch({
+                          type: 'SET_SCRIPT_PLAN',
+                          payload: {
+                            ...state.scriptPlan,
+                            fullOrder: [...(state.scriptPlan.fullOrder ?? []), t.id],
+                          },
+                        });
+                      }}
+                      style={{
+                        background: 'rgba(255,255,255,0.06)',
+                        color: '#cbd5e1',
+                        padding: '4px 10px',
+                        fontSize: 12,
+                        borderRadius: 8,
+                      }}
+                    >
+                      + {t.name}
+                    </button>
+                  ))}
+              </div>
+
+              {/* Pinned next */}
               <div>
                 <label style={{ color: '#94a3b8', fontSize: 13, display: 'block', marginBottom: 6 }}>
                   Следующая команда (принудительно)
@@ -246,12 +352,51 @@ export default function AdminMode() {
                   ))}
                 </select>
               </div>
-              <button
-                onClick={() => dispatch({ type: 'SET_SCRIPT_PLAN', payload: {} })}
-                style={{ background: 'rgba(255,255,255,0.06)', color: '#e2e8f0', justifySelf: 'start' }}
-              >
-                Сбросить правила
-              </button>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={() => dispatch({ type: 'SET_SCRIPT_PLAN', payload: {} })}
+                  style={{ background: 'rgba(255,255,255,0.06)', color: '#e2e8f0' }}
+                >
+                  Очистить очередь
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Mechanics */}
+          <div className="card" style={{ marginBottom: 24 }}>
+            <h2 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 700 }}>Механики</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {(Object.keys(MECHANIC_META) as MechanicId[]).map((m) => {
+                const enabled = state.settings.enabledMechanics.includes(m);
+                return (
+                  <label
+                    key={m}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      color: enabled ? '#e2e8f0' : '#475569',
+                      cursor: 'pointer',
+                      padding: '6px 0',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={enabled}
+                      onChange={(e) => {
+                        const next = e.target.checked
+                          ? [...state.settings.enabledMechanics, m]
+                          : state.settings.enabledMechanics.filter((id) => id !== m);
+                        dispatch({ type: 'SET_SETTINGS', payload: { enabledMechanics: next } });
+                      }}
+                    />
+                    <span style={{ fontWeight: enabled ? 600 : 400 }}>{MECHANIC_META[m].label}</span>
+                    <span style={{ fontSize: 12, color: '#64748b' }}>— {MECHANIC_META[m].description}</span>
+                  </label>
+                );
+              })}
             </div>
           </div>
 

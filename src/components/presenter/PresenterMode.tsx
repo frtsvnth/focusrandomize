@@ -21,9 +21,18 @@ export default function PresenterMode() {
   const { state, dispatch } = useAppState();
   const { canPick, isRevealing, lastResult, mechanic, startSelection, clearReveal } =
     useSelection();
+
+  // If current mechanic is disabled, switch to first enabled one
+  useEffect(() => {
+    const em = state.settings.enabledMechanics;
+    if (em && em.length > 0 && !em.includes(mechanic)) {
+      dispatch({ type: 'SELECT_MECHANIC', payload: em[0] });
+    }
+  }, [state.settings.enabledMechanics, mechanic]);
   const { playClick, playWin } = useSound();
   const [animating, setAnimating] = useState(false);
-  const [historyVisible, setHistoryVisible] = useState(true);
+
+  const historyVisible = state.ui.historyVisible;
 
   const activeTeams = state.masterTeams.filter((t) =>
     state.session.activeTeamIds.includes(t.id)
@@ -113,7 +122,7 @@ export default function PresenterMode() {
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button
-            onClick={() => setHistoryVisible((v) => !v)}
+            onClick={() => dispatch({ type: 'SET_HISTORY_VISIBLE', payload: !historyVisible })}
             style={{
               background: 'rgba(255,255,255,0.06)',
               color: historyVisible ? 'var(--accent)' : '#64748b',
@@ -147,7 +156,9 @@ export default function PresenterMode() {
 
       {/* Mechanic tabs */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', flexShrink: 0 }}>
-        {(Object.keys(MECHANIC_META) as MechanicId[]).map((m) => (
+        {(Object.keys(MECHANIC_META) as MechanicId[])
+          .filter((m) => state.settings.enabledMechanics?.includes(m) ?? true)
+          .map((m) => (
           <button
             key={m}
             onClick={() => {

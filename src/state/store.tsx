@@ -20,6 +20,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return {
           ...base,
           ...saved,
+          settings: { ...base.settings, ...saved.settings },
           ui: { ...base.ui, ...saved.ui },
         };
       }

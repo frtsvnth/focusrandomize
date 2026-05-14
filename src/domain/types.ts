@@ -66,6 +66,7 @@ export interface Settings {
   soundEnabled: boolean;
   reducedMotion: boolean;
   theme: 'dark' | 'light';
+  enabledMechanics: MechanicId[];
 }
 
 export interface AppState {
@@ -78,5 +79,6 @@ export interface AppState {
     isRevealing: boolean;
     lastResult?: SelectionResult;
     adminUnlocked: boolean;
+    historyVisible: boolean;
   };
 }

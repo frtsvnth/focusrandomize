@@ -1,4 +1,6 @@
 import type { AppState, Team, MechanicId, ScriptPlan } from '../domain/types';
+
+const ALL_MECHANICS: MechanicId[] = ['wheel', 'plinko', 'pinball', 'slot', 'race', 'claw', 'cards', 'stickman'];
 import { selectNextTeam, consumePinnedNext } from '../engine/selectionEngine';
 
 export type Action =
@@ -20,7 +22,8 @@ export type Action =
   | { type: 'CLEAR_REVEAL' }
   | { type: 'SET_SETTINGS'; payload: Partial<AppState['settings']> }
   | { type: 'IMPORT_STATE'; payload: AppState }
-  | { type: 'PIN_NEXT'; payload: string | undefined };
+  | { type: 'PIN_NEXT'; payload: string | undefined }
+  | { type: 'SET_HISTORY_VISIBLE'; payload: boolean };
 
 function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -73,11 +76,13 @@ export function getInitialState(): AppState {
         typeof window !== 'undefined' &&
         window.matchMedia('(prefers-reduced-motion: reduce)').matches,
       theme: 'dark',
+      enabledMechanics: [...ALL_MECHANICS],
     },
     ui: {
       mode: 'presenter',
       isRevealing: false,
       adminUnlocked: false,
+      historyVisible: true,
     },
   };
 }
@@ -271,6 +276,9 @@ export function appReducer(state: AppState, action: Action): AppState {
           isRevealing: false,
         },
       };
+    }
+    case 'SET_HISTORY_VISIBLE': {
+      return { ...state, ui: { ...state.ui, historyVisible: action.payload } };
     }
     default:
       return state;

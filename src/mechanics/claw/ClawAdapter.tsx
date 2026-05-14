@@ -95,8 +95,6 @@ export default function ClawAdapter({
   }, [wiggles, targetPos, reducedMotion, onComplete]);
 
   const cableHeight = Math.max(0, pos.y * 4.4 - 27);
-  const capsuleX = phase === 'lift' ? pos.x : targetPos.x;
-  const capsuleY = phase === 'lift' ? pos.y + 6 : targetPos.y;
 
   const transition = reducedMotion
     ? 'none'
@@ -216,39 +214,37 @@ export default function ClawAdapter({
             />
           ))}
         </div>
-      </div>
 
-      {(phase === 'grab' || phase === 'lift') && (
-        <div
-          style={{
-            position: 'absolute',
-            left: `${capsuleX}%`,
-            top: `${capsuleY}%`,
-            transform: 'translate(-50%, -50%)',
-            transition,
-            width: 72,
-            height: 72,
-            borderRadius: '50%',
-            background: `radial-gradient(circle at 35% 30%, ${targetTeam.color}dd, ${targetTeam.color}55)`,
-            boxShadow: `0 6px 20px ${targetTeam.color}44, inset 0 -6px 12px rgba(0,0,0,0.35)`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexDirection: 'column',
-            color: '#fff',
-            fontWeight: 800,
-            fontSize: 12,
-            border: '2px solid rgba(255,255,255,0.12)',
-            textAlign: 'center',
-            padding: 4,
-            lineHeight: 1.2,
-            zIndex: 15,
-          }}
-        >
-          {targetTeam.logo && <span style={{ fontSize: 18 }}>{targetTeam.logo}</span>}
-          {targetTeam.name}
-        </div>
-      )}
+        {(phase === 'grab' || phase === 'lift') && (
+          <div
+            style={{
+              position: 'absolute',
+              left: '50%',
+              top: '100%',
+              transform: 'translate(-50%, -4px)',
+              width: 72,
+              height: 72,
+              borderRadius: '50%',
+              background: `radial-gradient(circle at 35% 30%, ${targetTeam.color}dd, ${targetTeam.color}55)`,
+              boxShadow: `0 6px 20px ${targetTeam.color}44, inset 0 -6px 12px rgba(0,0,0,0.35)`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexDirection: 'column',
+              color: '#fff',
+              fontWeight: 800,
+              fontSize: 12,
+              border: '2px solid rgba(255,255,255,0.12)',
+              textAlign: 'center',
+              padding: 4,
+              lineHeight: 1.2,
+            }}
+          >
+            {targetTeam.logo && <span style={{ fontSize: 18 }}>{targetTeam.logo}</span>}
+            {targetTeam.name}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

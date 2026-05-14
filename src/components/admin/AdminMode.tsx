@@ -353,6 +353,49 @@ export default function AdminMode() {
                 </select>
               </div>
 
+              {/* Always last */}
+              <div>
+                <label style={{ color: '#94a3b8', fontSize: 13, display: 'block', marginBottom: 6 }}>
+                  Команда, выступающая последней
+                </label>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <select
+                    style={{ flex: 1 }}
+                    value={state.scriptPlan.lastTeamId ?? ''}
+                    onChange={(e) =>
+                      dispatch({
+                        type: 'SET_SCRIPT_PLAN',
+                        payload: { ...state.scriptPlan, lastTeamId: e.target.value || undefined },
+                      })
+                    }
+                  >
+                    <option value="">— Не задано —</option>
+                    {state.masterTeams.filter((t) => t.enabled).map((t) => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                  {state.scriptPlan.lastTeamId && (
+                    <button
+                      onClick={() =>
+                        dispatch({
+                          type: 'SET_SCRIPT_PLAN',
+                          payload: { ...state.scriptPlan, lastTeamId: undefined },
+                        })
+                      }
+                      style={{ background: 'transparent', color: '#ef4444', padding: '6px 10px', fontSize: 13, borderRadius: 8 }}
+                      title="Снять отметку"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                {state.scriptPlan.lastTeamId && (
+                  <div style={{ fontSize: 12, color: '#fbbf24', marginTop: 4 }}>
+                    {state.masterTeams.find((t) => t.id === state.scriptPlan.lastTeamId)?.name ?? ''} будет выступать последней
+                  </div>
+                )}
+              </div>
+
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
                   onClick={() => dispatch({ type: 'SET_SCRIPT_PLAN', payload: {} })}

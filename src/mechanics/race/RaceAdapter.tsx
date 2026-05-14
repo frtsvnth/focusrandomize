@@ -24,24 +24,21 @@ export default function RaceAdapter({
   const { speeds, stumbleSchedule } = useMemo(() => {
     const rand = mulberry32(seed);
     const speedMap: Record<string, number> = {};
-    let maxOther = 0;
     for (const t of teams) {
       const base = 0.04 + rand() * 0.08;
       speedMap[t.id] = base;
-      if (t.id !== targetId) maxOther = Math.max(maxOther, base);
     }
-    speedMap[targetId] = maxOther + 0.03 + rand() * 0.05;
 
     const stumbleRand = mulberry32(seed + 777);
     const stumbleMap: Record<string, { start: number; duration: number }[]> = {};
     for (const t of teams) {
       if (t.id === targetId) continue;
-      const count = Math.floor(stumbleRand() * 3);
+      const count = 1 + Math.floor(stumbleRand() * 3);
       const events: { start: number; duration: number }[] = [];
       for (let i = 0; i < count; i++) {
         events.push({
-          start: 60 + stumbleRand() * 300,
-          duration: 30 + stumbleRand() * 50,
+          start: 120 + stumbleRand() * 300,
+          duration: 20 + stumbleRand() * 30,
         });
       }
       stumbleMap[t.id] = events;
@@ -122,9 +119,9 @@ export default function RaceAdapter({
           }
         }
 
-        if (t.id === targetId && state[t.id] > 50) {
-          const progress = (state[t.id] - 50) / 40;
-          speed *= 1 + progress * 0.8;
+        if (t.id === targetId && state[t.id] > 78) {
+          const progress = (state[t.id] - 78) / 13;
+          speed *= 1 + progress * 1.4;
         }
 
         if (frame_ < 30) {
@@ -346,24 +343,30 @@ export default function RaceAdapter({
 
       {phase === 'winner_pause' && (
         <div style={{
-          position: 'absolute',
+          position: 'fixed',
           inset: 0,
-          background: 'rgba(0,0,0,0.3)',
+          background: 'rgba(0,0,0,0.35)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          borderRadius: 20,
-          zIndex: 5,
+          zIndex: 100,
         }}>
-          <div style={{ textAlign: 'center', animation: 'reveal-in 0.6s ease-out' }}>
-            <div style={{ fontSize: 48, marginBottom: 8 }}>🏆</div>
+          <div style={{
+            textAlign: 'center',
+            animation: 'reveal-in 0.6s ease-out',
+            background: 'rgba(0,0,0,0.6)',
+            padding: '32px 48px',
+            borderRadius: 20,
+            border: '2px solid rgba(255,255,255,0.1)',
+          }}>
+            <div style={{ fontSize: 64, marginBottom: 12 }}>🏆</div>
             <div style={{
-              fontSize: 30, fontWeight: 900, color: targetTeam.color,
+              fontSize: 36, fontWeight: 900, color: targetTeam.color,
               textShadow: `0 0 24px ${targetTeam.color}88`,
             }}>
               {targetTeam.name}
             </div>
-            <div style={{ fontSize: 16, color: '#fbbf24', marginTop: 4 }}>
+            <div style={{ fontSize: 20, color: '#fbbf24', marginTop: 8, fontWeight: 700 }}>
               Победитель!
             </div>
           </div>

@@ -40,6 +40,7 @@ export interface ScriptPlan {
   fullOrder?: string[];
   fixedPositions?: Record<number, string>;
   pinnedNext?: string;
+  lastTeamId?: string;
 }
 
 export interface AnimationHint {

@@ -19,11 +19,19 @@ export function selectNextTeam(state: AppState): SelectionResult | null {
   const step = state.session.history.length;
   const plan = state.scriptPlan;
 
+  // Build pool, excluding lastTeamId if there are other teams left
+  const lastTeam = plan.lastTeamId
+    ? active.find((t) => t.id === plan.lastTeamId)
+    : undefined;
+  const pool = lastTeam && active.length > 1
+    ? active.filter((t) => t.id !== plan.lastTeamId)
+    : active;
+
   let target: Team | undefined;
   let reason: SelectionReason = 'true-random';
   let appliedRule = 'true-random';
 
-  // 1. Pinned next
+  // 1. Pinned next (can override last-team exclusion)
   if (plan.pinnedNext) {
     const found = active.find((t) => t.id === plan.pinnedNext);
     if (found) {
@@ -55,15 +63,24 @@ export function selectNextTeam(state: AppState): SelectionResult | null {
     }
   }
 
-  // 4. True random
+  // 4. True random (from the filtered pool excluding last team)
   if (!target) {
-    const idx = Math.floor(Math.random() * active.length);
-    target = active[idx];
+    randomFromPool: {
+      if (pool.length === 0) break randomFromPool;
+      const idx = Math.floor(Math.random() * pool.length);
+      target = pool[idx];
+      reason = 'true-random';
+      appliedRule = 'true-random';
+    }
+  }
+
+  // If nothing was selected (shouldn't happen), fallback
+  if (!target) {
+    target = active[0];
     reason = 'true-random';
     appliedRule = 'true-random';
   }
 
-  // Generate deterministic seed for scripted, random for true-random
   const seed =
     reason === 'true-random'
       ? Math.floor(Math.random() * 2 ** 32)

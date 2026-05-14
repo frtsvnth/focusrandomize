@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import type { MechanicAdapterProps } from '../adapter';
 import { shuffleWithSeed } from '../../utils/seededRandom';
 
-const CARD_W = 85;
-const CARD_H = 123;
+const CARD_RATIO = 123 / 85;
+
 type Phase = 'dealing' | 'revealing' | 'winner';
 
 export default function CardsAdapter({
@@ -26,8 +26,22 @@ export default function CardsAdapter({
   const N = revealOrder.length;
   const outerN = N - 1;
 
-  const rx = useMemo(() => Math.min(200, Math.max(90, outerN * 30)), [outerN]);
-  const ry = useMemo(() => Math.min(100, Math.max(50, outerN * 15)), [outerN]);
+  const cardW = useMemo(() => {
+    const base = Math.min(window.innerWidth * 0.1, 100);
+    return Math.max(70, base);
+  }, []);
+
+  const cardH = cardW * CARD_RATIO;
+
+  const rx = useMemo(() => {
+    const base = Math.min(200, Math.max(90, outerN * 30));
+    return Math.min(base, window.innerWidth * 0.25);
+  }, [outerN]);
+
+  const ry = useMemo(() => {
+    const base = Math.min(100, Math.max(50, outerN * 15));
+    return Math.min(base, rx * 0.5);
+  }, [outerN, rx]);
 
   const positions = useMemo(() => {
     const result: Array<{ x: number; y: number }> = [];
@@ -47,7 +61,7 @@ export default function CardsAdapter({
   const [revealedSet, setRevealedSet] = useState<Set<string>>(new Set());
   const [winnerMoment, setWinnerMoment] = useState(false);
 
-  const deckX = -(rx + CARD_W / 2 + 60);
+  const deckX = -(rx + cardW / 2 + 50);
 
   useEffect(() => {
     if (phase !== 'dealing') return;
@@ -115,11 +129,19 @@ export default function CardsAdapter({
     return () => clearTimeout(t);
   }, [phase, reducedMotion, onComplete]);
 
-  const isDealt = (index: number) => phase !== 'dealing' || index <= dealProgress;
+  const isDealt = (index: number) =>
+    phase !== 'dealing' || (dealProgress >= 0 && index <= dealProgress);
 
   const isWinnerCard = (id: string) => winnerMoment && id === targetTeam.id;
 
-  const containerH = ry * 2 + CARD_H + 100;
+  const containerH = ry * 2 + cardH + 100;
+
+  const calcFontSize = (name: string) => {
+    const maxChars = Math.floor(cardW / 7);
+    if (name.length <= maxChars) return Math.min(14, cardW * 0.16);
+    const scale = Math.min(1, maxChars / name.length);
+    return Math.max(9, Math.min(13, cardW * 0.16 * scale));
+  };
 
   return (
     <div
@@ -129,7 +151,7 @@ export default function CardsAdapter({
         alignItems: 'center',
         justifyContent: 'center',
         perspective: 1200,
-        padding: '10px 0',
+        padding: '8px 0',
         position: 'relative',
         width: '100%',
         height: Math.max(320, containerH),
@@ -143,8 +165,8 @@ export default function CardsAdapter({
             left: `calc(50% + ${deckX}px)`,
             top: '50%',
             transform: 'translate(-50%, -50%)',
-            width: CARD_W + 8,
-            height: CARD_H + 8,
+            width: cardW,
+            height: cardH,
             zIndex: 10,
           }}
         >
@@ -153,20 +175,62 @@ export default function CardsAdapter({
               key={i}
               style={{
                 position: 'absolute',
-                width: CARD_W - 4,
-                height: CARD_H - 4,
-                top: i * 2 + 4,
-                left: i * 1.5 + 4,
-                transform: `rotate(${(i - 1.5) * 1.5}deg)`,
+                width: cardW,
+                height: cardH,
+                top: i * 1,
+                left: i * 1,
+                transform: `rotate(${(i - 1.5) * 1.2}deg)`,
                 borderRadius: 10,
-                background: i === 0
-                  ? 'linear-gradient(145deg, #1a1f3a, #0d1025)'
-                  : 'linear-gradient(145deg, #141932, #0a0d1e)',
+                background: 'linear-gradient(145deg, #1a1f3a, #0d1025)',
                 border: '2px solid rgba(255,255,255,0.07)',
-                boxShadow: `2px 2px ${6 - i}px rgba(0,0,0,0.4)`,
+                boxShadow: `1px 1px ${4 - i * 0.5}px rgba(0,0,0,0.4)`,
+                overflow: 'hidden',
                 zIndex: i,
               }}
-            />
+            >
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  backgroundImage: `
+                    linear-gradient(45deg, rgba(255,255,255,0.03) 25%, transparent 25%),
+                    linear-gradient(-45deg, rgba(255,255,255,0.03) 25%, transparent 25%),
+                    linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.03) 75%),
+                    linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.03) 75%)
+                  `,
+                  backgroundSize: '14px 14px',
+                  backgroundPosition: '0 0, 0 7px, 7px -7px, -7px 0px',
+                }}
+              />
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 4,
+                  borderRadius: 7,
+                  border: '1.5px solid rgba(255,255,255,0.06)',
+                }}
+              />
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  width: cardW * 0.38,
+                  height: cardW * 0.38,
+                  borderRadius: '50%',
+                  border: '1.5px solid rgba(255,255,255,0.06)',
+                  background: 'radial-gradient(circle, rgba(255,255,255,0.04), transparent)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: cardW * 0.2,
+                  color: 'rgba(255,255,255,0.15)',
+                }}
+              >
+                ♠
+              </div>
+            </div>
           ))}
         </div>
       )}
@@ -181,7 +245,7 @@ export default function CardsAdapter({
 
         const translateOff = dealt
           ? 'translate(0, 0)'
-          : `translate(${deckX + CARD_W / 2 + 8 - pos.x}px, ${-pos.y}px)`;
+          : `translate(${deckX - pos.x}px, ${-pos.y}px)`;
 
         const dealTransition = phase === 'dealing'
           ? 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)'
@@ -200,8 +264,8 @@ export default function CardsAdapter({
               position: 'absolute',
               left: `calc(50% + ${pos.x}px)`,
               top: `calc(50% + ${pos.y}px)`,
-              width: CARD_W,
-              height: CARD_H,
+              width: cardW,
+              height: cardH,
               transformOrigin: 'center center',
               transformStyle: 'preserve-3d',
               transform: revealed
@@ -211,8 +275,8 @@ export default function CardsAdapter({
                 ? dealTransition
                 : revealTransition,
               borderRadius: 10,
-              marginLeft: -(CARD_W / 2),
-              marginTop: -(CARD_H / 2),
+              marginLeft: -(cardW / 2),
+              marginTop: -(cardH / 2),
               zIndex: isCenter ? 20
                 : phase === 'dealing'
                 ? (dealt ? 3 : -1)
@@ -248,8 +312,8 @@ export default function CardsAdapter({
                     linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.03) 75%),
                     linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.03) 75%)
                   `,
-                  backgroundSize: '16px 16px',
-                  backgroundPosition: '0 0, 0 8px, 8px -8px, -8px 0px',
+                  backgroundSize: '14px 14px',
+                  backgroundPosition: '0 0, 0 7px, 7px -7px, -7px 0px',
                 }}
               />
               <div
@@ -262,15 +326,15 @@ export default function CardsAdapter({
               />
               <div
                 style={{
-                  width: 36,
-                  height: 36,
+                  width: cardW * 0.38,
+                  height: cardW * 0.38,
                   borderRadius: '50%',
                   background: `radial-gradient(circle, ${team.color}22, transparent)`,
                   border: '1.5px solid rgba(255,255,255,0.06)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: 18,
+                  fontSize: cardW * 0.2,
                   color: 'rgba(255,255,255,0.2)',
                   position: 'relative',
                   zIndex: 1,
@@ -292,23 +356,28 @@ export default function CardsAdapter({
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                padding: 12,
-                gap: 8,
+                padding: '10%',
+                gap: cardW * 0.06,
                 boxShadow: 'inset 0 0 20px rgba(0,0,0,0.2)',
               }}
             >
               {team.logo && (
-                <div style={{ fontSize: 28, lineHeight: 1 }}>{team.logo}</div>
+                <div style={{ fontSize: cardW * 0.33, lineHeight: 1, flexShrink: 0 }}>
+                  {team.logo}
+                </div>
               )}
               <div
                 style={{
-                  fontSize: 13,
+                  fontSize: calcFontSize(team.name),
                   fontWeight: 800,
                   color: '#fff',
                   textAlign: 'center',
                   textShadow: '0 1px 3px rgba(0,0,0,0.6)',
-                  lineHeight: 1.2,
-                  wordBreak: 'break-word',
+                  lineHeight: 1.15,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  maxWidth: '100%',
                 }}
               >
                 {team.name}
@@ -316,13 +385,14 @@ export default function CardsAdapter({
               {isWinner && (
                 <div
                   style={{
-                    fontSize: 10,
+                    fontSize: cardW * 0.12,
                     color: '#fbbf24',
                     fontWeight: 700,
                     textTransform: 'uppercase',
                     letterSpacing: 1,
                     textShadow: '0 0 6px rgba(251,191,36,0.6)',
                     animation: 'reveal-in 0.4s ease-out',
+                    whiteSpace: 'nowrap',
                   }}
                 >
                   Победитель!

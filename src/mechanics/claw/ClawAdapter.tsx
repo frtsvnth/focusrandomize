@@ -145,7 +145,7 @@ export default function ClawAdapter({
               fontWeight: 800,
               fontSize: 13,
               opacity: hidden ? 0 : 1,
-              transition: 'opacity 0.35s, left 0.6s cubic-bezier(0.4, 0, 0.2, 1), top 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
+              transition: hidden ? 'none' : 'opacity 0.35s',
               border: '2px solid rgba(255,255,255,0.12)',
               textAlign: 'center',
               padding: 4,
@@ -207,6 +207,7 @@ export default function ClawAdapter({
               textAlign: 'center',
               padding: 4,
               lineHeight: 1.2,
+              zIndex: -1,
             }}
           >
             {targetTeam.logo && <span style={{ fontSize: 18 }}>{targetTeam.logo}</span>}

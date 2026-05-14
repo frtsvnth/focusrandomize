@@ -106,16 +106,20 @@ export default function RaceAdapter({
           continue;
         }
 
-        let speed = speeds[t.id] * (0.8 + Math.random() * 0.4);
+        let speed = speeds[t.id] * (0.8 + Math.random() * 0.6);
         const frame_ = frame;
 
         if (t.id !== targetId) {
           const stumbles = stumbleSchedule[t.id] || [];
           for (const s of stumbles) {
             if (frame_ >= s.start && frame_ < s.start + s.duration) {
-              speed *= 0.2;
+              speed *= 0.5;
               break;
             }
+          }
+          if (state[t.id] > 82) {
+            const slowdown = (state[t.id] - 82) / 8;
+            speed *= 1 - slowdown * 0.8;
           }
         }
 
@@ -129,9 +133,12 @@ export default function RaceAdapter({
         }
 
         state[t.id] += speed;
-        if (state[t.id] >= 91) {
+        if (t.id === targetId && state[t.id] >= 91) {
           state[t.id] = 91;
-          if (t.id === targetId) winner = true;
+          winner = true;
+        }
+        if (t.id !== targetId && state[t.id] >= 88) {
+          state[t.id] = 88;
         }
       }
 

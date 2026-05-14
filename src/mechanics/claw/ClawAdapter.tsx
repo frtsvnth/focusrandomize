@@ -12,14 +12,21 @@ export default function ClawAdapter({
   const [phase, setPhase] = useState<'move' | 'drop' | 'grab' | 'lift'>('move');
   const [pos, setPos] = useState({ x: 50, y: 8 });
 
-  const targetIdx = teams.findIndex((t) => t.id === targetTeam.id);
-  const cols = Math.min(teams.length, 4);
-  const rows = Math.ceil(teams.length / cols);
-
-  const targetCol = targetIdx % cols;
-  const targetRow = Math.floor(targetIdx / cols);
-
   const rand = useMemo(() => mulberry32(seed), [seed]);
+
+  const teamPositions = useMemo(() => {
+    const positions: { x: number; y: number }[] = [];
+    for (let i = 0; i < teams.length; i++) {
+      positions.push({
+        x: 8 + rand() * 84,
+        y: 20 + rand() * 60,
+      });
+    }
+    return positions;
+  }, [rand, teams.length]);
+
+  const targetIdx = teams.findIndex((t) => t.id === targetTeam.id);
+  const targetPos = teamPositions[targetIdx];
 
   const wiggles = useMemo(() => {
     const arr: { x: number; y: number; t: number }[] = [];
@@ -35,9 +42,7 @@ export default function ClawAdapter({
 
   useEffect(() => {
     if (reducedMotion) {
-      const left = (targetCol / (cols - 1 || 1)) * 88 + 6;
-      const top = (targetRow / (rows - 1 || 1)) * 55 + 22;
-      setPos({ x: left, y: top });
+      setPos({ x: targetPos.x, y: targetPos.y });
       setPhase('grab');
       const to = setTimeout(onComplete, 500);
       return () => clearTimeout(to);
@@ -52,9 +57,7 @@ export default function ClawAdapter({
         i++;
         setTimeout(run, wiggles[i - 1].t);
       } else {
-        const left = (targetCol / (cols - 1 || 1)) * 88 + 6;
-        const top = (targetRow / (rows - 1 || 1)) * 55 + 22;
-        setPos({ x: left, y: top });
+        setPos({ x: targetPos.x, y: targetPos.y });
         setTimeout(() => {
           setPhase('drop');
           setTimeout(() => {
@@ -71,10 +74,9 @@ export default function ClawAdapter({
 
     const start = setTimeout(run, 200);
     return () => clearTimeout(start);
-  }, [wiggles, targetCol, targetRow, cols, rows, reducedMotion, onComplete]);
+  }, [wiggles, targetPos, reducedMotion, onComplete]);
 
-  const cellW = 88 / (cols - 1 || 1);
-  const cellH = 55 / (rows - 1 || 1);
+  const cableHeight = Math.max(0, pos.y * 4.4 - 27);
 
   return (
     <div
@@ -90,7 +92,6 @@ export default function ClawAdapter({
         boxShadow: 'inset 0 0 50px rgba(0,0,0,0.5), 0 0 30px rgba(34,211,238,0.08)',
       }}
     >
-      {/* Grid floor */}
       <div style={{
         position: 'absolute', inset: 0,
         backgroundImage: 'linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)',
@@ -98,20 +99,16 @@ export default function ClawAdapter({
         pointerEvents: 'none',
       }} />
 
-      {/* Prizes */}
       {teams.map((t, idx) => {
-        const c = idx % cols;
-        const r = Math.floor(idx / cols);
-        const left = c * cellW + 6;
-        const top = r * cellH + 22;
-        const grabbed = phase === 'grab' && t.id === targetTeam.id;
+        const { x, y } = teamPositions[idx];
+        const hidden = t.id === targetTeam.id && (phase === 'grab' || phase === 'lift');
         return (
           <div
             key={t.id}
             style={{
               position: 'absolute',
-              left: `${left}%`,
-              top: `${top}%`,
+              left: `${x}%`,
+              top: `${y}%`,
               transform: 'translate(-50%, -50%)',
               width: 80,
               height: 80,
@@ -125,12 +122,13 @@ export default function ClawAdapter({
               color: '#fff',
               fontWeight: 800,
               fontSize: 13,
-              opacity: grabbed ? 0 : 1,
+              opacity: hidden ? 0 : 1,
               transition: 'opacity 0.35s',
               border: '2px solid rgba(255,255,255,0.12)',
               textAlign: 'center',
               padding: 4,
               lineHeight: 1.2,
+              zIndex: hidden ? 0 : 2,
             }}
           >
             {t.logo && <span style={{ fontSize: 20 }}>{t.logo}</span>}
@@ -139,7 +137,21 @@ export default function ClawAdapter({
         );
       })}
 
-      {/* Claw mechanism */}
+      <div style={{
+        position: 'absolute',
+        left: `${pos.x}%`,
+        top: 0,
+        width: 3,
+        height: `${cableHeight}px`,
+        background: 'linear-gradient(180deg, #64748b, #94a3b8)',
+        transform: 'translateX(-50%)',
+        borderRadius: 2,
+        zIndex: 5,
+        transition: reducedMotion
+          ? 'none'
+          : 'height 0.6s cubic-bezier(0.4, 0, 0.2, 1), left 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
+      }} />
+
       <div
         style={{
           position: 'absolute',
@@ -150,18 +162,6 @@ export default function ClawAdapter({
           zIndex: 10,
         }}
       >
-        {/* Cable */}
-        <div style={{
-          position: 'absolute',
-          bottom: '100%',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: 3,
-          height: phase === 'lift' || phase === 'grab' ? 120 : 60,
-          background: 'linear-gradient(180deg, #64748b, #94a3b8)',
-          borderRadius: 2,
-        }} />
-        {/* Head */}
         <div style={{
           width: 54,
           height: 54,
@@ -172,18 +172,8 @@ export default function ClawAdapter({
           alignItems: 'center',
           justifyContent: 'center',
           boxShadow: '0 6px 20px rgba(0,0,0,0.5)',
-        }}>
-          {phase === 'grab' && (
-            <div style={{
-              width: 38,
-              height: 38,
-              borderRadius: '50%',
-              background: `radial-gradient(circle at 35% 30%, ${targetTeam.color}ee, ${targetTeam.color}77)`,
-              boxShadow: `0 0 16px ${targetTeam.color}88`,
-            }} />
-          )}
-        </div>
-        {/* Fingers */}
+        }} />
+
         <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: -2 }}>
           {[0, 1, 2].map((fi) => (
             <div
@@ -193,13 +183,44 @@ export default function ClawAdapter({
                 height: 26,
                 background: 'linear-gradient(180deg, #94a3b8, #64748b)',
                 borderRadius: 4,
-                transform: phase === 'grab' ? `rotate(${fi === 1 ? 0 : fi === 0 ? -25 : 25}deg)` : 'rotate(0deg)',
+                transform: phase === 'grab' || phase === 'lift'
+                  ? `rotate(${fi === 1 ? 0 : fi === 0 ? -25 : 25}deg)`
+                  : 'rotate(0deg)',
                 transition: 'transform 0.4s',
                 transformOrigin: 'top center',
               }}
             />
           ))}
         </div>
+
+        {(phase === 'grab' || phase === 'lift') && (
+          <div style={{
+            position: 'absolute',
+            top: '100%',
+            left: '50%',
+            transform: 'translate(-50%, 0)',
+            marginTop: 4,
+            width: 72,
+            height: 72,
+            borderRadius: '50%',
+            background: `radial-gradient(circle at 35% 30%, ${targetTeam.color}dd, ${targetTeam.color}55)`,
+            boxShadow: `0 6px 20px ${targetTeam.color}44, inset 0 -6px 12px rgba(0,0,0,0.35)`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexDirection: 'column',
+            color: '#fff',
+            fontWeight: 800,
+            fontSize: 12,
+            border: '2px solid rgba(255,255,255,0.12)',
+            textAlign: 'center',
+            padding: 4,
+            lineHeight: 1.2,
+          }}>
+            {targetTeam.logo && <span style={{ fontSize: 18 }}>{targetTeam.logo}</span>}
+            {targetTeam.name}
+          </div>
+        )}
       </div>
     </div>
   );

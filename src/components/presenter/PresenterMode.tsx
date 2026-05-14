@@ -8,8 +8,6 @@ import type { MechanicId, Team } from '../../domain/types';
 
 const adapters: Record<MechanicId, React.LazyExoticComponent<React.FC<any>>> = {
   wheel: lazy(() => import('../../mechanics/wheel/WheelAdapter')),
-  plinko: lazy(() => import('../../mechanics/plinko/PlinkoAdapter')),
-  pinball: lazy(() => import('../../mechanics/pinball/PinballAdapter')),
   slot: lazy(() => import('../../mechanics/slotMachine/SlotMachineAdapter')),
   race: lazy(() => import('../../mechanics/race/RaceAdapter')),
   claw: lazy(() => import('../../mechanics/claw/ClawAdapter')),

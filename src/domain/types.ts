@@ -21,8 +21,6 @@ export type SelectionReason =
 
 export type MechanicId =
   | 'wheel'
-  | 'plinko'
-  | 'pinball'
   | 'slot'
   | 'race'
   | 'claw'

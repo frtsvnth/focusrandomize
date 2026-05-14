@@ -13,8 +13,6 @@ export const MECHANIC_META: Record<
   { label: string; description: string }
 > = {
   wheel: { label: 'Колесо Фортуны', description: 'Крутите колесо!' },
-  plinko: { label: 'Плинко', description: 'Бросьте шарик' },
-  pinball: { label: 'Пинбол', description: 'Запустите шар' },
   slot: { label: 'Автомат', description: 'Дёрните рычаг' },
   race: { label: 'Скачки', description: 'Кто первым к финишу' },
   claw: { label: 'Хватайка', description: 'Захватите капсулу' },

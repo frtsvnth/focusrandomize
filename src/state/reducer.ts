@@ -1,6 +1,6 @@
 import type { AppState, Team, MechanicId, ScriptPlan } from '../domain/types';
 
-const ALL_MECHANICS: MechanicId[] = ['wheel', 'plinko', 'pinball', 'slot', 'race', 'claw', 'cards', 'stickman'];
+const ALL_MECHANICS: MechanicId[] = ['wheel', 'slot', 'race', 'claw', 'cards', 'stickman'];
 import { selectNextTeam, consumePinnedNext } from '../engine/selectionEngine';
 
 export type Action =

@@ -113,7 +113,7 @@ export default function PresenterMode() {
           </div>
           <div>
             <h1 style={{ margin: 0, fontSize: 22, color: '#fff', fontWeight: 800, letterSpacing: -0.5 }}>
-              Focus Randomizer
+              Кто следующий?
             </h1>
             <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
               {state.session.isActive ? 'Сессия активна' : 'Нет активной сессии'}

@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import type { MechanicAdapterProps } from '../adapter';
 import { shuffleWithSeed } from '../../utils/seededRandom';
 
-const CARD_W = 80;
-const CARD_H = 116;
-const MAX_PER_ROW = 8;
-const GAP = 8;
+const CARD_W = 100;
+const CARD_H = 145;
+const MAX_PER_ROW = 6;
+const GAP = 12;
 
 type Phase = 'dealing' | 'revealing' | 'winner';
 
@@ -35,7 +35,7 @@ export default function CardsAdapter({
   }, [revealOrder]);
 
   const firstRowLen = rows[0]?.length ?? 1;
-  const cardW = Math.min(CARD_W, Math.max(56, (600 - (firstRowLen - 1) * GAP) / firstRowLen));
+  const cardW = Math.min(CARD_W, Math.max(70, (600 - (firstRowLen - 1) * GAP) / firstRowLen));
   const cardH = cardW * (CARD_H / CARD_W);
   const firstRowWidth = firstRowLen * cardW + (firstRowLen - 1) * GAP;
   const deckOffsetX = -(firstRowWidth / 2 + cardW / 2 + 20);
@@ -48,7 +48,7 @@ export default function CardsAdapter({
   useEffect(() => {
     if (phase !== 'dealing') return;
     let stopped = false;
-    const stagger = 60;
+    const stagger = 150;
     const timeouts: ReturnType<typeof setTimeout>[] = [];
 
     for (let i = 0; i < revealOrder.length; i++) {
@@ -62,7 +62,7 @@ export default function CardsAdapter({
     const transitionTimer = setTimeout(() => {
       if (stopped) return;
       setPhase('revealing');
-    }, (revealOrder.length - 1) * stagger + 350);
+    }, (revealOrder.length - 1) * stagger + 400);
     timeouts.push(transitionTimer);
 
     return () => {
@@ -94,10 +94,6 @@ export default function CardsAdapter({
       if (stopped) return;
       setPhase('winner');
       setWinnerMoment(true);
-      const endTimer = setTimeout(() => {
-        if (!stopped) onComplete();
-      }, reducedMotion ? 100 : 1500);
-      timeouts.push(endTimer);
     }, winnerDelay);
     timeouts.push(winnerTimer);
 
@@ -105,7 +101,15 @@ export default function CardsAdapter({
       stopped = true;
       timeouts.forEach(clearTimeout);
     };
-  }, [phase, revealOrder, reducedMotion, onComplete]);
+  }, [phase, revealOrder, reducedMotion]);
+
+  useEffect(() => {
+    if (phase !== 'winner') return;
+    const t = setTimeout(() => {
+      onComplete();
+    }, reducedMotion ? 100 : 1500);
+    return () => clearTimeout(t);
+  }, [phase, reducedMotion, onComplete]);
 
   const flatIndex = (ri: number, ci: number) => {
     let idx = 0;
@@ -126,7 +130,6 @@ export default function CardsAdapter({
         position: 'relative',
       }}
     >
-      {/* Deck visual during dealing */}
       {phase === 'dealing' && (
         <div
           style={{
@@ -191,7 +194,6 @@ export default function CardsAdapter({
                   zIndex: phase === 'dealing' ? (dealt ? 2 : -1) : 1,
                 }}
               >
-                {/* Back */}
                 <div
                   style={{
                     position: 'absolute',
@@ -230,15 +232,15 @@ export default function CardsAdapter({
                   />
                   <div
                     style={{
-                      width: 32,
-                      height: 32,
+                      width: 36,
+                      height: 36,
                       borderRadius: '50%',
                       background: `radial-gradient(circle, ${team.color}22, transparent)`,
                       border: '1.5px solid rgba(255,255,255,0.06)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontSize: 16,
+                      fontSize: 18,
                       color: 'rgba(255,255,255,0.2)',
                       position: 'relative',
                       zIndex: 1,
@@ -247,7 +249,6 @@ export default function CardsAdapter({
                     ♠
                   </div>
                 </div>
-                {/* Front */}
                 <div
                   style={{
                     position: 'absolute',
@@ -261,17 +262,17 @@ export default function CardsAdapter({
                     flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    padding: 8,
-                    gap: 6,
+                    padding: 12,
+                    gap: 8,
                     boxShadow: 'inset 0 0 20px rgba(0,0,0,0.2)',
                   }}
                 >
                   {team.logo && (
-                    <div style={{ fontSize: 26, lineHeight: 1 }}>{team.logo}</div>
+                    <div style={{ fontSize: 30, lineHeight: 1 }}>{team.logo}</div>
                   )}
                   <div
                     style={{
-                      fontSize: 12,
+                      fontSize: 14,
                       fontWeight: 800,
                       color: '#fff',
                       textAlign: 'center',
@@ -285,7 +286,7 @@ export default function CardsAdapter({
                   {isWinner && (
                     <div
                       style={{
-                        fontSize: 9,
+                        fontSize: 10,
                         color: '#fbbf24',
                         fontWeight: 700,
                         textTransform: 'uppercase',

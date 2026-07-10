@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import type { AppState } from '../domain/types';
-import type { Action } from './reducer';
+import type { Action } from './actions';
 import { appReducer, getInitialState } from './reducer';
 import { loadState, saveState } from './persistence';
 
@@ -20,7 +20,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return {
           ...base,
           ...saved,
-          settings: { ...base.settings, ...saved.settings },
+          settings: {
+            ...base.settings,
+            ...saved.settings,
+            // Preserve user's enabledMechanics even if empty array
+            enabledMechanics: saved.settings?.enabledMechanics ?? base.settings.enabledMechanics,
+            theme: saved.settings?.theme ?? base.settings.theme,
+          },
           ui: { ...base.ui, ...saved.ui },
         };
       }

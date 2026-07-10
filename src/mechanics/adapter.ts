@@ -18,4 +18,9 @@ export const MECHANIC_META: Record<
   claw: { label: 'Хватайка', description: 'Захватите капсулу' },
   cards: { label: 'Тайные карты', description: 'Откройте одну' },
   stickman: { label: 'Битва стикменов', description: 'Сражайтесь до победы' },
+  elevator: { label: 'Лифт', description: 'Кто на этом этаже?' },
+  tornado: { label: 'Торнадо', description: 'Вихрь отбора' },
+  dice: { label: 'Кости', description: 'Брось кубик' },
+  gladiator: { label: 'Гладиаторы', description: 'Бой на арене' },
+  alien: { label: 'Похищение', description: 'НЛО выбирает жертву' },
 };

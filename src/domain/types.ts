@@ -25,7 +25,14 @@ export type MechanicId =
   | 'race'
   | 'claw'
   | 'cards'
-  | 'stickman';
+  | 'stickman'
+  | 'elevator'
+  | 'tornado'
+  | 'dice'
+  | 'gladiator'
+  | 'alien';
+
+export type ThemeId = 'dark' | 'light' | 'neon' | 'retro' | 'space';
 
 export interface Session {
   activeTeamIds: string[];
@@ -64,7 +71,7 @@ export interface Settings {
   adminPin: string;
   soundEnabled: boolean;
   reducedMotion: boolean;
-  theme: 'dark' | 'light';
+  theme: ThemeId;
   enabledMechanics: MechanicId[];
 }
 

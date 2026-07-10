@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback, lazy, Suspense } from 'react';
+import { useEffect, useState, useCallback, lazy, Suspense, memo } from 'react';
 import { useAppState } from '../../state/store';
 import { useSelection } from '../../hooks/useSelection';
 import { useSound } from '../../hooks/useSound';
 import { MECHANIC_META } from '../../mechanics/adapter';
 import { TeamBadge } from '../shared/TeamBadge';
+import { actions } from '../../state/actions';
 import type { MechanicId, Team } from '../../domain/types';
 
 const adapters: Record<MechanicId, React.LazyExoticComponent<React.FC<any>>> = {
@@ -13,20 +14,62 @@ const adapters: Record<MechanicId, React.LazyExoticComponent<React.FC<any>>> = {
   claw: lazy(() => import('../../mechanics/claw/ClawAdapter')),
   cards: lazy(() => import('../../mechanics/cards/CardsAdapter')),
   stickman: lazy(() => import('../../mechanics/stickman/StickmanAdapter')),
+  elevator: lazy(() => import('../../mechanics/elevator/ElevatorAdapter')),
+  tornado: lazy(() => import('../../mechanics/tornado/TornadoAdapter')),
+  dice: lazy(() => import('../../mechanics/dice/DiceRollAdapter')),
+  gladiator: lazy(() => import('../../mechanics/gladiator/GladiatorAdapter')),
+  alien: lazy(() => import('../../mechanics/alien/AlienAbductionAdapter')),
 };
+
+const MechanicStage = memo(function MechanicStage({
+  mechanic,
+  teams,
+  targetTeam,
+  seed,
+  reducedMotion,
+  onComplete,
+}: {
+  mechanic: MechanicId;
+  teams: Team[];
+  targetTeam: Team;
+  seed: number;
+  reducedMotion: boolean;
+  onComplete: (winner?: Team) => void;
+}) {
+  const Component = adapters[mechanic];
+  return (
+    <Suspense
+      fallback={
+        <div style={{ color: '#64748b', fontSize: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span className="reveal-anim">Загрузка механики…</span>
+        </div>
+      }
+    >
+      <Component
+        teams={teams}
+        targetTeam={targetTeam}
+        seed={seed}
+        reducedMotion={reducedMotion}
+        onComplete={onComplete}
+      />
+    </Suspense>
+  );
+});
 
 export default function PresenterMode() {
   const { state, dispatch } = useAppState();
   const { canPick, isRevealing, lastResult, mechanic, startSelection, clearReveal } =
     useSelection();
 
-  // If current mechanic is disabled, switch to first enabled one
+  const enabledMechanics = state.settings.enabledMechanics;
+
+  // If current mechanic is disabled and there are enabled ones, switch to first enabled
   useEffect(() => {
-    const em = state.settings.enabledMechanics;
-    if (em && em.length > 0 && !em.includes(mechanic)) {
-      dispatch({ type: 'SELECT_MECHANIC', payload: em[0] });
+    if (enabledMechanics.length > 0 && !enabledMechanics.includes(mechanic)) {
+      dispatch(actions.selectMechanic(enabledMechanics[0]));
     }
-  }, [state.settings.enabledMechanics, mechanic]);
+  }, [enabledMechanics, mechanic, dispatch]);
+
   const { playClick, playWin } = useSound();
   const [animating, setAnimating] = useState(false);
 
@@ -47,10 +90,13 @@ export default function PresenterMode() {
     startSelection();
   }, [canPick, animating, playClick, startSelection]);
 
-  const handleAnimationComplete = useCallback((_winner?: Team) => {
-    playWin();
-    setAnimating(false);
-  }, [playWin]);
+  const handleAnimationComplete = useCallback(
+    (_winner?: Team) => {
+      playWin();
+      setAnimating(false);
+    },
+    [playWin]
+  );
 
   const handleNext = useCallback(() => {
     clearReveal();
@@ -71,7 +117,7 @@ export default function PresenterMode() {
     return () => window.removeEventListener('keydown', onKey);
   }, [isRevealing, animating, handleNext, handleStart]);
 
-  const MechanicComponent = adapters[mechanic];
+  const noMechanicsEnabled = enabledMechanics.length === 0;
 
   return (
     <div
@@ -104,26 +150,36 @@ export default function PresenterMode() {
               alignItems: 'center',
               justifyContent: 'center',
               fontSize: 22,
-              boxShadow: '0 4px 16px rgba(34,211,238,0.25)',
+              boxShadow: '0 4px 16px var(--accent-glow)',
             }}
           >
             🎲
           </div>
           <div>
-            <h1 style={{ margin: 0, fontSize: 22, color: '#fff', fontWeight: 800, letterSpacing: -0.5 }}>
+            <h1
+              style={{
+                margin: 0,
+                fontSize: 22,
+                color: 'var(--text)',
+                fontWeight: 800,
+                letterSpacing: -0.5,
+              }}
+            >
               Кто следующий?
             </h1>
-            <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
               {state.session.isActive ? 'Сессия активна' : 'Нет активной сессии'}
             </div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button
-            onClick={() => dispatch({ type: 'SET_HISTORY_VISIBLE', payload: !historyVisible })}
+            onClick={() =>
+              dispatch(actions.setHistoryVisible(!historyVisible))
+            }
             style={{
               background: 'rgba(255,255,255,0.06)',
-              color: historyVisible ? 'var(--accent)' : '#64748b',
+              color: historyVisible ? 'var(--accent)' : 'var(--text-dim)',
               padding: '10px 14px',
               fontSize: 16,
             }}
@@ -132,10 +188,16 @@ export default function PresenterMode() {
             {historyVisible ? '📋' : '📭'}
           </button>
           <button
-            onClick={() => dispatch({ type: 'SET_SETTINGS', payload: { soundEnabled: !state.settings.soundEnabled } })}
+            onClick={() =>
+              dispatch(
+                actions.setSettings({
+                  soundEnabled: !state.settings.soundEnabled,
+                })
+              )
+            }
             style={{
               background: 'rgba(255,255,255,0.06)',
-              color: state.settings.soundEnabled ? 'var(--accent)' : '#64748b',
+              color: state.settings.soundEnabled ? 'var(--accent)' : 'var(--text-dim)',
               padding: '10px 14px',
               fontSize: 18,
             }}
@@ -144,8 +206,8 @@ export default function PresenterMode() {
             {state.settings.soundEnabled ? '🔊' : '🔇'}
           </button>
           <button
-            onClick={() => dispatch({ type: 'SET_MODE', payload: 'admin' })}
-            style={{ background: 'rgba(255,255,255,0.06)', color: '#94a3b8' }}
+            onClick={() => dispatch(actions.setMode('admin'))}
+            style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--text-dim)' }}
           >
             ⚙️ Админ
           </button>
@@ -154,28 +216,42 @@ export default function PresenterMode() {
 
       {/* Mechanic tabs */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', flexShrink: 0 }}>
-        {(Object.keys(MECHANIC_META) as MechanicId[])
-          .filter((m) => state.settings.enabledMechanics?.includes(m) ?? true)
-          .map((m) => (
-          <button
-            key={m}
-            onClick={() => {
-              playClick();
-              dispatch({ type: 'SELECT_MECHANIC', payload: m });
-            }}
+        {noMechanicsEnabled ? (
+          <div
             style={{
-              background: mechanic === m
-                ? 'linear-gradient(135deg, var(--accent), var(--purple))'
-                : 'rgba(255,255,255,0.04)',
-              color: mechanic === m ? '#020617' : '#cbd5e1',
-              border: mechanic === m ? 'none' : '1px solid rgba(255,255,255,0.06)',
               padding: '10px 18px',
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px dashed rgba(255,255,255,0.15)',
+              borderRadius: 12,
+              color: 'var(--text-dim)',
               fontSize: 13,
             }}
           >
-            {MECHANIC_META[m].label}
-          </button>
-        ))}
+            ⚠️ В админке включите хотя бы одну механику
+          </div>
+        ) : (
+          enabledMechanics.map((m) => (
+            <button
+              key={m}
+              onClick={() => {
+                playClick();
+                dispatch(actions.selectMechanic(m));
+              }}
+              style={{
+                background:
+                  mechanic === m
+                    ? 'linear-gradient(135deg, var(--accent), var(--purple))'
+                    : 'rgba(255,255,255,0.04)',
+                color: mechanic === m ? '#020617' : '#cbd5e1',
+                border: mechanic === m ? 'none' : '1px solid rgba(255,255,255,0.06)',
+                padding: '10px 18px',
+                fontSize: 13,
+              }}
+            >
+              {MECHANIC_META[m].label}
+            </button>
+          ))
+        )}
       </div>
 
       {/* Stage - fills remaining space */}
@@ -191,74 +267,87 @@ export default function PresenterMode() {
           minHeight: 0,
         }}
       >
-        {isRevealing && lastResult ? (
-          <Suspense fallback={
-            <div style={{ color: '#64748b', fontSize: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span className="reveal-anim">Загрузка механики…</span>
+        {noMechanicsEnabled ? (
+          <div style={{ textAlign: 'center', color: 'var(--text-dim)' }}>
+            <div style={{ fontSize: 56, marginBottom: 16 }}>🛠️</div>
+            <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)' }}>
+              Все механики выключены
             </div>
-          }>
-            <MechanicComponent
+            <div style={{ fontSize: 13, marginTop: 8, color: 'var(--text-dim)' }}>
+              Перейдите в Админ → Механики и выберите нужные
+            </div>
+          </div>
+        ) : isRevealing && lastResult ? (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 40,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'var(--bg)',
+              padding: 24,
+            }}
+          >
+            <MechanicStage
+              mechanic={mechanic}
               teams={activeTeams}
               targetTeam={lastResult.team}
               seed={lastResult.animationHint.seed}
               reducedMotion={state.settings.reducedMotion}
               onComplete={handleAnimationComplete}
             />
-          </Suspense>
-        ) : (
-          <div style={{ textAlign: 'center', color: '#94a3b8', animation: 'float 4s ease-in-out infinite' }}>
-            <div style={{
-              fontSize: 72,
-              marginBottom: 16,
-              filter: 'drop-shadow(0 0 30px rgba(34,211,238,0.2))',
-            }}>🎯</div>
-            <div style={{ fontSize: 20, fontWeight: 600, color: '#e2e8f0' }}>
-              Нажмите «Старт», чтобы выбрать следующую команду
-            </div>
-            <div style={{ fontSize: 13, marginTop: 8, color: '#64748b' }}>
-              Или просто нажмите Пробел
-            </div>
           </div>
-        )}
+        ) : (
+          <>
+            <div
+              style={{
+                textAlign: 'center',
+                color: 'var(--text-dim)',
+                animation: 'float 4s ease-in-out infinite',
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 72,
+                  marginBottom: 16,
+                  filter: 'drop-shadow(0 0 30px var(--accent-glow))',
+                }}
+              >
+                🎯
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--text)' }}>
+                Нажмите «Старт», чтобы выбрать следующую команду
+              </div>
+              <div style={{ fontSize: 13, marginTop: 8, color: 'var(--text-dim)' }}>
+                Или просто нажмите Пробел
+              </div>
+            </div>
 
-        {!isRevealing && (
-          <button
-            onClick={handleStart}
-            disabled={!canPick}
-            style={{
-              fontSize: 22,
-              padding: '18px 48px',
-              background: canPick
-                ? 'linear-gradient(135deg, var(--accent), var(--purple))'
-                : '#334155',
-              color: canPick ? '#020617' : '#94a3b8',
-              borderRadius: 16,
-              boxShadow: canPick ? '0 8px 32px rgba(34,211,238,0.3)' : 'none',
-              animation: canPick ? 'pulse-glow 3s ease-in-out infinite' : 'none',
-            }}
-          >
-            {canPick ? '▶ Старт' : 'Все команды выступили'}
-          </button>
-        )}
-
-        {isRevealing && !animating && lastResult && (
-          <button
-            onClick={handleNext}
-            style={{
-              fontSize: 18,
-              padding: '14px 32px',
-              background: 'linear-gradient(135deg, var(--success), #10b981)',
-              color: '#020617',
-              borderRadius: 14,
-              boxShadow: '0 6px 24px rgba(52,211,153,0.3)',
-            }}
-          >
-            Далее ➜
-          </button>
+            <button
+              onClick={handleStart}
+              disabled={!canPick}
+              style={{
+                fontSize: 22,
+                padding: '18px 48px',
+                background: canPick
+                  ? 'linear-gradient(135deg, var(--accent), var(--purple))'
+                  : '#334155',
+                color: canPick ? '#020617' : '#94a3b8',
+                borderRadius: 16,
+                boxShadow: canPick ? '0 8px 32px var(--accent-glow)' : 'none',
+                animation: canPick ? 'pulse-glow 3s ease-in-out infinite' : 'none',
+              }}
+            >
+              {canPick ? '▶ Старт' : 'Все команды выступили'}
+            </button>
+          </>
         )}
       </div>
 
-      {/* Result overlay */}
+      {/* Result overlay - only when animation done */}
       {isRevealing && !animating && lastResult && (
         <div
           style={{
@@ -275,7 +364,14 @@ export default function PresenterMode() {
           }}
           className="reveal-anim"
         >
-          <div style={{ fontSize: 18, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 3 }}>
+          <div
+            style={{
+              fontSize: 18,
+              color: 'var(--text-dim)',
+              textTransform: 'uppercase',
+              letterSpacing: 3,
+            }}
+          >
             Слово предоставляется
           </div>
           <div
@@ -289,7 +385,13 @@ export default function PresenterMode() {
             }}
           >
             {lastResult.team.logo && (
-              <span style={{ fontSize: 56, marginRight: 16, verticalAlign: 'middle' }}>
+              <span
+                style={{
+                  fontSize: 56,
+                  marginRight: 16,
+                  verticalAlign: 'middle',
+                }}
+              >
                 {lastResult.team.logo}
               </span>
             )}
@@ -322,7 +424,16 @@ export default function PresenterMode() {
           }}
         >
           <div className="card">
-            <div style={{ fontSize: 11, color: '#64748b', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 700 }}>
+            <div
+              style={{
+                fontSize: 11,
+                color: 'var(--text-dim)',
+                marginBottom: 10,
+                textTransform: 'uppercase',
+                letterSpacing: 1.5,
+                fontWeight: 700,
+              }}
+            >
               Осталось ({activeTeams.length})
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
@@ -342,27 +453,51 @@ export default function PresenterMode() {
             </div>
           </div>
           <div className="card">
-            <div style={{ fontSize: 11, color: '#64748b', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 700 }}>
+            <div
+              style={{
+                fontSize: 11,
+                color: 'var(--text-dim)',
+                marginBottom: 10,
+                textTransform: 'uppercase',
+                letterSpacing: 1.5,
+                fontWeight: 700,
+              }}
+            >
               История
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {historyTeams.length === 0 && (
-                <div style={{ color: '#475569', fontSize: 13 }}>Пока никто не выступал</div>
+                <div style={{ color: '#475569', fontSize: 13 }}>
+                  Пока никто не выступал
+                </div>
               )}
               {historyTeams.map((t, i) => (
-                <div key={`${t.id}-${i}`} style={{ fontSize: 13, color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{
-                    display: 'inline-flex',
+                <div
+                  key={`${t.id}-${i}`}
+                  style={{
+                    fontSize: 13,
+                    color: 'var(--text)',
+                    display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 22,
-                    height: 22,
-                    borderRadius: 6,
-                    background: 'rgba(255,255,255,0.06)',
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: '#94a3b8',
-                  }}>{i + 1}</span>
+                    gap: 8,
+                  }}
+                >
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 22,
+                      height: 22,
+                      borderRadius: 6,
+                      background: 'rgba(255,255,255,0.06)',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: 'var(--text-dim)',
+                    }}
+                  >
+                    {i + 1}
+                  </span>
                   <TeamBadge team={t} size="sm" />
                 </div>
               ))}

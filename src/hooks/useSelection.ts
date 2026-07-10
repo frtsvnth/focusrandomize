@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useAppState } from '../state/store';
+import { actions } from '../state/actions';
 
 export function useSelection() {
   const { state, dispatch } = useAppState();
@@ -8,11 +9,11 @@ export function useSelection() {
 
   const startSelection = useCallback(() => {
     if (!canPick) return;
-    dispatch({ type: 'RUN_SELECTION' });
+    dispatch(actions.runSelection());
   }, [canPick, dispatch]);
 
   const clearReveal = useCallback(() => {
-    dispatch({ type: 'CLEAR_REVEAL' });
+    dispatch(actions.clearReveal());
   }, [dispatch]);
 
   return {

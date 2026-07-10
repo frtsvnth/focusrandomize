@@ -1,29 +1,6 @@
-import type { AppState, Team, MechanicId, ScriptPlan } from '../domain/types';
-
-const ALL_MECHANICS: MechanicId[] = ['wheel', 'slot', 'race', 'claw', 'cards', 'stickman'];
+import type { AppState, Team } from '../domain/types';
+import type { Action } from './actions';
 import { selectNextTeam, consumePinnedNext } from '../engine/selectionEngine';
-
-export type Action =
-  | { type: 'SET_MODE'; payload: 'presenter' | 'admin' }
-  | { type: 'UNLOCK_ADMIN' }
-  | { type: 'ADD_TEAM'; payload: Team }
-  | { type: 'UPDATE_TEAM'; payload: Team }
-  | { type: 'DELETE_TEAM'; payload: string }
-  | { type: 'REORDER_TEAMS'; payload: string[] }
-  | { type: 'SET_SCRIPT_PLAN'; payload: ScriptPlan }
-  | { type: 'START_SESSION' }
-  | { type: 'RESET_SESSION' }
-  | { type: 'UNDO_LAST_PICK' }
-  | { type: 'REMOVE_FROM_SESSION'; payload: string }
-  | { type: 'RESTORE_TO_SESSION'; payload: string }
-  | { type: 'SELECT_MECHANIC'; payload: MechanicId }
-  | { type: 'RUN_SELECTION' }
-  | { type: 'REVEAL_RESULT' }
-  | { type: 'CLEAR_REVEAL' }
-  | { type: 'SET_SETTINGS'; payload: Partial<AppState['settings']> }
-  | { type: 'IMPORT_STATE'; payload: AppState }
-  | { type: 'PIN_NEXT'; payload: string | undefined }
-  | { type: 'SET_HISTORY_VISIBLE'; payload: boolean };
 
 function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -76,7 +53,7 @@ export function getInitialState(): AppState {
         typeof window !== 'undefined' &&
         window.matchMedia('(prefers-reduced-motion: reduce)').matches,
       theme: 'dark',
-      enabledMechanics: [...ALL_MECHANICS],
+      enabledMechanics: ['wheel', 'slot', 'race', 'claw', 'cards', 'stickman', 'gladiator'],
     },
     ui: {
       mode: 'presenter',

@@ -2,7 +2,8 @@ import { useState, useRef } from 'react';
 import { useAppState } from '../../state/store';
 import { exportJSON, importJSON } from '../../state/persistence';
 import { MECHANIC_META } from '../../mechanics/adapter';
-import type { Team, MechanicId } from '../../domain/types';
+import { actions } from '../../state/actions';
+import type { Team, MechanicId, ThemeId } from '../../domain/types';
 
 function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -12,6 +13,14 @@ function randomColor() {
   const colors = ['#ef4444','#f97316','#eab308','#22c55e','#06b6d4','#3b82f6','#a855f7','#ec4899','#f43f5e','#14b8a6'];
   return colors[Math.floor(Math.random() * colors.length)];
 }
+
+const THEMES: { id: ThemeId; label: string }[] = [
+  { id: 'dark', label: 'Тёмная' },
+  { id: 'light', label: 'Светлая' },
+  { id: 'neon', label: 'Неон' },
+  { id: 'retro', label: 'Ретро' },
+  { id: 'space', label: 'Космос' },
+];
 
 export default function AdminMode() {
   const { state, dispatch } = useAppState();
@@ -23,7 +32,7 @@ export default function AdminMode() {
 
   const handleUnlock = () => {
     if (pinInput === state.settings.adminPin) {
-      dispatch({ type: 'UNLOCK_ADMIN' });
+      dispatch(actions.unlockAdmin());
     }
   };
 
@@ -36,15 +45,15 @@ export default function AdminMode() {
       color: randomColor(),
       enabled: true,
     };
-    dispatch({ type: 'ADD_TEAM', payload: team });
+    dispatch(actions.addTeam(team));
   };
 
   const updateTeam = (team: Team) => {
-    dispatch({ type: 'UPDATE_TEAM', payload: team });
+    dispatch(actions.updateTeam(team));
   };
 
   const deleteTeam = (id: string) => {
-    if (confirm('Удалить команду?')) dispatch({ type: 'DELETE_TEAM', payload: id });
+    if (confirm('Удалить команду?')) dispatch(actions.deleteTeam(id));
   };
 
   const moveTeam = (id: string, direction: 'up' | 'down') => {
@@ -57,7 +66,7 @@ export default function AdminMode() {
     if (direction === 'down' && idx < ids.length - 1) {
       [ids[idx + 1], ids[idx]] = [ids[idx], ids[idx + 1]];
     }
-    dispatch({ type: 'REORDER_TEAMS', payload: ids });
+    dispatch(actions.reorderTeams(ids));
   };
 
   const activeIds = state.session.activeTeamIds;
@@ -72,9 +81,9 @@ export default function AdminMode() {
             background: 'linear-gradient(135deg, var(--purple), var(--pink))',
             display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
           }}>⚙️</div>
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: '#fff' }}>Админ-панель</h1>
+          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: 'var(--text)' }}>Админ-панель</h1>
         </div>
-        <button onClick={() => dispatch({ type: 'SET_MODE', payload: 'presenter' })} style={{ background: 'rgba(255,255,255,0.06)', color: '#e2e8f0' }}>
+        <button onClick={() => dispatch(actions.setMode('presenter'))} style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--text)' }}>
           ← Назад к шоу
         </button>
       </div>
@@ -93,22 +102,22 @@ export default function AdminMode() {
 
       {unlocked && (
         <>
-          {/* Session controls — FIRST */}
+          {/* Session controls */}
           <div className="card" style={{ marginBottom: 24 }}>
             <h2 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 700 }}>Управление сессией</h2>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
-              <button onClick={() => dispatch({ type: 'START_SESSION' })} style={{ background: 'linear-gradient(135deg, var(--accent), var(--purple))', color: '#020617' }}>
+              <button onClick={() => dispatch(actions.startSession())} style={{ background: 'linear-gradient(135deg, var(--accent), var(--purple))', color: '#020617' }}>
                 🚀 Новая сессия
               </button>
-              <button onClick={() => dispatch({ type: 'RESET_SESSION' })} style={{ background: 'rgba(255,255,255,0.06)', color: '#e2e8f0' }}>
+              <button onClick={() => dispatch(actions.resetSession())} style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--text)' }}>
                 ↺ Сбросить текущую
               </button>
-              <button onClick={() => dispatch({ type: 'UNDO_LAST_PICK' })} style={{ background: 'rgba(255,255,255,0.06)', color: '#e2e8f0' }}>
+              <button onClick={() => dispatch(actions.undoLastPick())} style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--text)' }}>
                 ↩ Отменить последний выбор
               </button>
             </div>
-            <div style={{ fontSize: 13, color: '#94a3b8' }}>
-              Активных команд: <strong style={{ color: '#e2e8f0' }}>{activeIds.length}</strong> | Выбрано: <strong style={{ color: '#e2e8f0' }}>{history.length}</strong>
+            <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>
+              Активных команд: <strong style={{ color: 'var(--text)' }}>{activeIds.length}</strong> | Выбрано: <strong style={{ color: 'var(--text)' }}>{history.length}</strong>
             </div>
           </div>
 
@@ -138,12 +147,12 @@ export default function AdminMode() {
                     <button
                       onClick={() => moveTeam(t.id, 'up')}
                       disabled={idx === 0}
-                      style={{ background: 'transparent', color: idx === 0 ? '#334155' : '#64748b', padding: '2px 6px', fontSize: 12, borderRadius: 4 }}
+                      style={{ background: 'transparent', color: idx === 0 ? '#334155' : 'var(--text-dim)', padding: '2px 6px', fontSize: 12, borderRadius: 4 }}
                     >▲</button>
                     <button
                       onClick={() => moveTeam(t.id, 'down')}
                       disabled={idx === state.masterTeams.length - 1}
-                      style={{ background: 'transparent', color: idx === state.masterTeams.length - 1 ? '#334155' : '#64748b', padding: '2px 6px', fontSize: 12, borderRadius: 4 }}
+                      style={{ background: 'transparent', color: idx === state.masterTeams.length - 1 ? '#334155' : 'var(--text-dim)', padding: '2px 6px', fontSize: 12, borderRadius: 4 }}
                     >▼</button>
                   </div>
                   <input
@@ -164,7 +173,7 @@ export default function AdminMode() {
                     style={{ flex: 1, minWidth: 120 }}
                   />
                   <code style={{ fontSize: 10, color: '#475569', fontFamily: 'monospace', flexShrink: 0 }}>{t.id.slice(0, 8)}…</code>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#94a3b8', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-dim)', whiteSpace: 'nowrap', flexShrink: 0 }}>
                     <input
                       type="checkbox"
                       checked={t.enabled}
@@ -175,15 +184,15 @@ export default function AdminMode() {
                   {state.session.isActive && (
                     activeIds.includes(t.id) ? (
                       <button
-                        onClick={() => dispatch({ type: 'REMOVE_FROM_SESSION', payload: t.id })}
-                        style={{ background: 'rgba(255,255,255,0.06)', color: '#e2e8f0', padding: '5px 8px', fontSize: 12, borderRadius: 8 }}
+                        onClick={() => dispatch(actions.removeFromSession(t.id))}
+                        style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--text)', padding: '5px 8px', fontSize: 12, borderRadius: 8 }}
                         title="Убрать из текущей сессии"
                       >
                         −
                       </button>
                     ) : (
                       <button
-                        onClick={() => dispatch({ type: 'RESTORE_TO_SESSION', payload: t.id })}
+                        onClick={() => dispatch(actions.restoreToSession(t.id))}
                         style={{ background: 'var(--success)', color: '#020617', padding: '5px 8px', fontSize: 12, borderRadius: 8 }}
                         title="Вернуть в сессию"
                       >
@@ -205,7 +214,7 @@ export default function AdminMode() {
             <div style={{ display: 'grid', gap: 14 }}>
               {/* Visual queue list */}
               <div>
-                <label style={{ color: '#94a3b8', fontSize: 13, display: 'block', marginBottom: 8 }}>
+                <label style={{ color: 'var(--text-dim)', fontSize: 13, display: 'block', marginBottom: 8 }}>
                   Запланированный порядок
                 </label>
                 {state.scriptPlan.fullOrder && state.scriptPlan.fullOrder.length > 0 ? (
@@ -235,7 +244,7 @@ export default function AdminMode() {
                             background: 'rgba(255,255,255,0.08)',
                             fontSize: 11,
                             fontWeight: 700,
-                            color: '#94a3b8',
+                            color: 'var(--text-dim)',
                             flexShrink: 0,
                           }}>{idx + 1}</span>
                           <span style={{
@@ -245,16 +254,15 @@ export default function AdminMode() {
                             background: team?.color ?? '#475569',
                             flexShrink: 0,
                           }} />
-                          <span style={{ flex: 1, fontSize: 13, color: '#e2e8f0' }}>
+                          <span style={{ flex: 1, fontSize: 13, color: 'var(--text)' }}>
                             {team ? team.name : <span style={{ color: '#ef4444' }}>?? {id.slice(0, 8)}…</span>}
                           </span>
                           <button
                             onClick={() => {
                               const next = state.scriptPlan.fullOrder!.filter((fid) => fid !== id);
-                              dispatch({
-                                type: 'SET_SCRIPT_PLAN',
-                                payload: { ...state.scriptPlan, fullOrder: next.length ? next : undefined },
-                              });
+                              dispatch(
+                                actions.setScriptPlan({ ...state.scriptPlan, fullOrder: next.length ? next : undefined })
+                              );
                             }}
                             style={{ background: 'transparent', color: '#ef4444', padding: '2px 6px', fontSize: 12, borderRadius: 4 }}
                             title="Убрать из очереди"
@@ -290,13 +298,12 @@ export default function AdminMode() {
                 <button
                   onClick={() => {
                     if (!queueSelect) return;
-                    dispatch({
-                      type: 'SET_SCRIPT_PLAN',
-                      payload: {
+                    dispatch(
+                      actions.setScriptPlan({
                         ...state.scriptPlan,
                         fullOrder: [...(state.scriptPlan.fullOrder ?? []), queueSelect],
-                      },
-                    });
+                      })
+                    );
                     setQueueSelect('');
                   }}
                   style={{ background: 'var(--accent)', color: '#020617', whiteSpace: 'nowrap' }}
@@ -315,13 +322,12 @@ export default function AdminMode() {
                     <button
                       key={t.id}
                       onClick={() => {
-                        dispatch({
-                          type: 'SET_SCRIPT_PLAN',
-                          payload: {
+                        dispatch(
+                          actions.setScriptPlan({
                             ...state.scriptPlan,
                             fullOrder: [...(state.scriptPlan.fullOrder ?? []), t.id],
-                          },
-                        });
+                          })
+                        );
                       }}
                       style={{
                         background: 'rgba(255,255,255,0.06)',
@@ -338,13 +344,13 @@ export default function AdminMode() {
 
               {/* Pinned next */}
               <div>
-                <label style={{ color: '#94a3b8', fontSize: 13, display: 'block', marginBottom: 6 }}>
+                <label style={{ color: 'var(--text-dim)', fontSize: 13, display: 'block', marginBottom: 6 }}>
                   Следующая команда (принудительно)
                 </label>
                 <select
                   style={{ width: '100%' }}
                   value={state.scriptPlan.pinnedNext ?? ''}
-                  onChange={(e) => dispatch({ type: 'PIN_NEXT', payload: e.target.value || undefined })}
+                  onChange={(e) => dispatch(actions.pinNext(e.target.value || undefined))}
                 >
                   <option value="">— Не задано —</option>
                   {state.masterTeams.filter((t) => t.enabled).map((t) => (
@@ -355,7 +361,7 @@ export default function AdminMode() {
 
               {/* Always last */}
               <div>
-                <label style={{ color: '#94a3b8', fontSize: 13, display: 'block', marginBottom: 6 }}>
+                <label style={{ color: 'var(--text-dim)', fontSize: 13, display: 'block', marginBottom: 6 }}>
                   Команда, выступающая последней
                 </label>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -363,10 +369,9 @@ export default function AdminMode() {
                     style={{ flex: 1 }}
                     value={state.scriptPlan.lastTeamId ?? ''}
                     onChange={(e) =>
-                      dispatch({
-                        type: 'SET_SCRIPT_PLAN',
-                        payload: { ...state.scriptPlan, lastTeamId: e.target.value || undefined },
-                      })
+                      dispatch(
+                        actions.setScriptPlan({ ...state.scriptPlan, lastTeamId: e.target.value || undefined })
+                      )
                     }
                   >
                     <option value="">— Не задано —</option>
@@ -377,10 +382,9 @@ export default function AdminMode() {
                   {state.scriptPlan.lastTeamId && (
                     <button
                       onClick={() =>
-                        dispatch({
-                          type: 'SET_SCRIPT_PLAN',
-                          payload: { ...state.scriptPlan, lastTeamId: undefined },
-                        })
+                        dispatch(
+                          actions.setScriptPlan({ ...state.scriptPlan, lastTeamId: undefined })
+                        )
                       }
                       style={{ background: 'transparent', color: '#ef4444', padding: '6px 10px', fontSize: 13, borderRadius: 8 }}
                       title="Снять отметку"
@@ -390,7 +394,7 @@ export default function AdminMode() {
                   )}
                 </div>
                 {state.scriptPlan.lastTeamId && (
-                  <div style={{ fontSize: 12, color: '#fbbf24', marginTop: 4 }}>
+                  <div style={{ fontSize: 12, color: 'var(--warning)', marginTop: 4 }}>
                     {state.masterTeams.find((t) => t.id === state.scriptPlan.lastTeamId)?.name ?? ''} будет выступать последней
                   </div>
                 )}
@@ -398,8 +402,8 @@ export default function AdminMode() {
 
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
-                  onClick={() => dispatch({ type: 'SET_SCRIPT_PLAN', payload: {} })}
-                  style={{ background: 'rgba(255,255,255,0.06)', color: '#e2e8f0' }}
+                  onClick={() => dispatch(actions.setScriptPlan({}))}
+                  style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--text)' }}
                 >
                   Очистить очередь
                 </button>
@@ -410,6 +414,9 @@ export default function AdminMode() {
           {/* Mechanics */}
           <div className="card" style={{ marginBottom: 24 }}>
             <h2 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 700 }}>Механики</h2>
+            <div style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 12 }}>
+              По умолчанию все выключены. Включите те, которые хотите использовать в шоу.
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {(Object.keys(MECHANIC_META) as MechanicId[]).map((m) => {
                 const enabled = state.settings.enabledMechanics.includes(m);
@@ -420,7 +427,7 @@ export default function AdminMode() {
                       display: 'flex',
                       alignItems: 'center',
                       gap: 10,
-                      color: enabled ? '#e2e8f0' : '#475569',
+                      color: enabled ? 'var(--text)' : '#475569',
                       cursor: 'pointer',
                       padding: '6px 0',
                     }}
@@ -432,11 +439,11 @@ export default function AdminMode() {
                         const next = e.target.checked
                           ? [...state.settings.enabledMechanics, m]
                           : state.settings.enabledMechanics.filter((id) => id !== m);
-                        dispatch({ type: 'SET_SETTINGS', payload: { enabledMechanics: next } });
+                        dispatch(actions.setSettings({ enabledMechanics: next }));
                       }}
                     />
                     <span style={{ fontWeight: enabled ? 600 : 400 }}>{MECHANIC_META[m].label}</span>
-                    <span style={{ fontSize: 12, color: '#64748b' }}>— {MECHANIC_META[m].description}</span>
+                    <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>— {MECHANIC_META[m].description}</span>
                   </label>
                 );
               })}
@@ -446,29 +453,56 @@ export default function AdminMode() {
           {/* Settings */}
           <div className="card" style={{ marginBottom: 24 }}>
             <h2 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 700 }}>Настройки</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#e2e8f0', cursor: 'pointer' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text)', cursor: 'pointer' }}>
                 <input
                   type="checkbox"
                   checked={state.settings.soundEnabled}
-                  onChange={(e) => dispatch({ type: 'SET_SETTINGS', payload: { soundEnabled: e.target.checked } })}
+                  onChange={(e) => dispatch(actions.setSettings({ soundEnabled: e.target.checked }))}
                 />
                 Звуковые эффекты
               </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#e2e8f0', cursor: 'pointer' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text)', cursor: 'pointer' }}>
                 <input
                   type="checkbox"
                   checked={state.settings.reducedMotion}
-                  onChange={(e) => dispatch({ type: 'SET_SETTINGS', payload: { reducedMotion: e.target.checked } })}
+                  onChange={(e) => dispatch(actions.setSettings({ reducedMotion: e.target.checked }))}
                 />
                 Уменьшить анимацию (доступность)
               </label>
+
+              {/* Theme picker */}
+              <div>
+                <label style={{ color: 'var(--text-dim)', fontSize: 13, display: 'block', marginBottom: 8 }}>
+                  Тема оформления
+                </label>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {THEMES.map((theme) => (
+                    <button
+                      key={theme.id}
+                      onClick={() => dispatch(actions.setSettings({ theme: theme.id }))}
+                      style={{
+                        background: state.settings.theme === theme.id
+                          ? 'linear-gradient(135deg, var(--accent), var(--purple))'
+                          : 'rgba(255,255,255,0.06)',
+                        color: state.settings.theme === theme.id ? '#020617' : 'var(--text)',
+                        padding: '8px 16px',
+                        fontSize: 13,
+                        borderRadius: 10,
+                      }}
+                    >
+                      {theme.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                <span style={{ color: '#94a3b8', fontSize: 13 }}>PIN админки (только UI):</span>
+                <span style={{ color: 'var(--text-dim)', fontSize: 13 }}>PIN админки (только UI):</span>
                 <input
                   type="text"
                   value={state.settings.adminPin}
-                  onChange={(e) => dispatch({ type: 'SET_SETTINGS', payload: { adminPin: e.target.value } })}
+                  onChange={(e) => dispatch(actions.setSettings({ adminPin: e.target.value }))}
                   placeholder="Пусто = без защиты"
                   style={{ flex: 1, maxWidth: 240 }}
                 />
@@ -490,13 +524,13 @@ export default function AdminMode() {
                   a.click();
                   URL.revokeObjectURL(url);
                 }}
-                style={{ background: 'rgba(255,255,255,0.06)', color: '#e2e8f0' }}
+                style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--text)' }}
               >
                 📥 Экспорт JSON
               </button>
               <button
                 onClick={() => fileRef.current?.click()}
-                style={{ background: 'rgba(255,255,255,0.06)', color: '#e2e8f0' }}
+                style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--text)' }}
               >
                 📤 Импорт JSON
               </button>
@@ -511,7 +545,7 @@ export default function AdminMode() {
                   const text = await file.text();
                   const parsed = importJSON(text);
                   if (parsed) {
-                    dispatch({ type: 'IMPORT_STATE', payload: parsed });
+                    dispatch(actions.importState(parsed));
                     alert('Импорт успешен');
                   } else {
                     alert('Некорректный JSON');
@@ -525,7 +559,7 @@ export default function AdminMode() {
           {/* Debug */}
           <div className="card">
             <h2 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 700 }}>Отладка</h2>
-            <div style={{ fontSize: 13, color: '#94a3b8', display: 'flex', flexDirection: 'column', gap: 8, fontFamily: 'monospace' }}>
+            <div style={{ fontSize: 13, color: 'var(--text-dim)', display: 'flex', flexDirection: 'column', gap: 8, fontFamily: 'monospace' }}>
               <div>Статус: {state.session.isActive ? 'активна' : 'неактивна'}</div>
               <div>Осталось: {activeIds.map((id) => state.masterTeams.find((t) => t.id === id)?.name).filter(Boolean).join(', ')}</div>
               <div>История: {history.map((h) => `${state.masterTeams.find((t) => t.id === h.teamId)?.name} (${h.reason})`).join(' → ')}</div>

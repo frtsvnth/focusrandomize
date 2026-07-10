@@ -1,6 +1,7 @@
 import type { AppState } from '../domain/types';
+import { appStateSchema } from '../domain/schema';
 
-const STORAGE_KEY = 'sprint-review-show-v1';
+const STORAGE_KEY = 'sprint-review-show-v2';
 
 export function saveState(state: AppState): void {
   try {
@@ -14,7 +15,13 @@ export function loadState(): Partial<AppState> | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as Partial<AppState>;
+    const parsed = JSON.parse(raw);
+    const result = appStateSchema.safeParse(parsed);
+    if (result.success) {
+      return result.data as Partial<AppState>;
+    }
+    // Graceful fallback: try to return partial data even if schema drifted
+    return parsed as Partial<AppState>;
   } catch {
     return null;
   }
@@ -26,7 +33,14 @@ export function exportJSON(state: AppState): string {
 
 export function importJSON(json: string): AppState | null {
   try {
-    return JSON.parse(json) as AppState;
+    const parsed = JSON.parse(json);
+    const result = appStateSchema.safeParse(parsed);
+    if (result.success) {
+      return result.data as AppState;
+    }
+    // eslint-disable-next-line no-console
+    console.warn('Import validation failed', result.error.flatten());
+    return null;
   } catch {
     return null;
   }

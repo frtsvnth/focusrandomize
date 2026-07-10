@@ -7,6 +7,10 @@ function Router() {
   const { state, dispatch } = useAppState();
 
   useEffect(() => {
+    document.documentElement.setAttribute('data-theme', state.settings.theme);
+  }, [state.settings.theme]);
+
+  useEffect(() => {
     const onHash = () => {
       const hash = window.location.hash.replace('#', '');
       if (hash === 'admin') dispatch({ type: 'SET_MODE', payload: 'admin' });

@@ -7,6 +7,8 @@ const mechanicIdSchema = z.enum([
 
 const themeIdSchema = z.enum(['dark', 'light', 'neon', 'retro', 'space']);
 
+const engineVersionSchema = z.enum(['v1', 'v2']);
+
 const teamSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -61,6 +63,7 @@ const settingsSchema = z.object({
   reducedMotion: z.boolean(),
   theme: themeIdSchema,
   enabledMechanics: z.array(mechanicIdSchema),
+  engineVersion: engineVersionSchema.default('v1'),
 });
 
 const uiSchema = z.object({

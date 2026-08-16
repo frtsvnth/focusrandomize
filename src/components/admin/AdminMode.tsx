@@ -102,6 +102,60 @@ export default function AdminMode() {
 
       {unlocked && (
         <>
+          {/* Engine version */}
+          <div
+            className="card"
+            style={{
+              marginBottom: 24,
+              border: '1px solid rgba(167,139,250,0.25)',
+              background: 'linear-gradient(145deg, rgba(167,139,250,0.08), rgba(11,18,33,0.95))',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>✨ Версия шоу</h2>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  padding: '3px 10px',
+                  borderRadius: 999,
+                  background: 'rgba(167,139,250,0.18)',
+                  color: 'var(--purple)',
+                  letterSpacing: 0.5,
+                }}
+              >
+                V2 = BETA
+              </span>
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 14 }}>
+              V1 — проверенная классика, ничего не меняется. V2 — новая презентационная оболочка
+              с частицами, кинематографичным раскрытием результата и процедурным звуком; флагманские механики
+              (Колесо, Автомат, Скачки) полностью переработаны, остальные пока используют графику V1
+              внутри новой обёртки.
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              {(['v1', 'v2'] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => dispatch(actions.setSettings({ engineVersion: v }))}
+                  style={{
+                    flex: 1,
+                    background:
+                      state.settings.engineVersion === v
+                        ? 'linear-gradient(135deg, var(--purple), var(--pink))'
+                        : 'rgba(255,255,255,0.06)',
+                    color: state.settings.engineVersion === v ? '#020617' : 'var(--text)',
+                    padding: '14px 16px',
+                    fontSize: 15,
+                    fontWeight: 800,
+                  }}
+                >
+                  {v === 'v1' ? '🅰️ Версия 1 (классика)' : '🚀 Версия 2 (новая)'}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Session controls */}
           <div className="card" style={{ marginBottom: 24 }}>
             <h2 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 700 }}>Управление сессией</h2>

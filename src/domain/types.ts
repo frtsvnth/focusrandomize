@@ -67,12 +67,15 @@ export interface SelectionResult {
   debugMeta: DebugMeta;
 }
 
+export type EngineVersion = 'v1' | 'v2';
+
 export interface Settings {
   adminPin: string;
   soundEnabled: boolean;
   reducedMotion: boolean;
   theme: ThemeId;
   enabledMechanics: MechanicId[];
+  engineVersion: EngineVersion;
 }
 
 export interface AppState {

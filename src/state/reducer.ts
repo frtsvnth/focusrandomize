@@ -54,6 +54,7 @@ export function getInitialState(): AppState {
         window.matchMedia('(prefers-reduced-motion: reduce)').matches,
       theme: 'dark',
       enabledMechanics: ['wheel', 'slot', 'race', 'claw', 'cards', 'stickman', 'gladiator'],
+      engineVersion: 'v1',
     },
     ui: {
       mode: 'presenter',

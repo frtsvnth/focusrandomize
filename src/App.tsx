@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useAppState } from './state/store';
 import PresenterMode from './components/presenter/PresenterMode';
+import PresenterModeV2 from './components/presenter/v2/PresenterModeV2';
 import AdminMode from './components/admin/AdminMode';
 
 function Router() {
@@ -30,7 +31,13 @@ function Router() {
 
   return (
     <div className="gradient-bg" style={{ minHeight: '100vh' }}>
-      {state.ui.mode === 'admin' ? <AdminMode /> : <PresenterMode />}
+      {state.ui.mode === 'admin' ? (
+        <AdminMode />
+      ) : state.settings.engineVersion === 'v2' ? (
+        <PresenterModeV2 />
+      ) : (
+        <PresenterMode />
+      )}
     </div>
   );
 }

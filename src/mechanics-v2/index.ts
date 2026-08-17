@@ -2,9 +2,9 @@ import { lazy } from 'react';
 import type { MechanicId } from '../domain/types';
 
 /**
- * Mechanics that already got the full V2 treatment (canvas rendering, particles,
- * procedural sound). Anything not listed here falls back to its V1 adapter,
- * still wrapped in the V2 presentation shell, until it's upgraded too.
+ * Every mechanic now has a full V2 adapter (canvas rendering, particles,
+ * procedural sound). V1 adapters remain only as a legacy fallback for any
+ * mechanic id missing from this registry.
  */
 export const V2_ADAPTERS: Partial<Record<MechanicId, React.LazyExoticComponent<React.FC<any>>>> = {
   wheel: lazy(() => import('./wheel/WheelAdapterV2')),

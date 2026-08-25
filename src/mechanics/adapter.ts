@@ -23,4 +23,5 @@ export const MECHANIC_META: Record<
   dice: { label: 'Кости', description: 'Брось кубик' },
   gladiator: { label: 'Гладиаторы', description: 'Бой на арене' },
   alien: { label: 'Похищение', description: 'НЛО выбирает жертву' },
+  toyRace: { label: 'Игрушечные гонки', description: 'Машинки мчатся по трассе' },
 };

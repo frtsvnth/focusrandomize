@@ -29,6 +29,13 @@ const MechanicStage = memo(function MechanicStage({
   sound: SoundV2Api;
 }) {
   const Component = V2_ADAPTERS[mechanic] ?? V1_ADAPTERS[mechanic];
+  if (!Component) {
+    return (
+      <div style={{ color: 'var(--text-dim)', fontSize: 16 }}>
+        Для этой механики нет адаптера.
+      </div>
+    );
+  }
   return (
     <Suspense
       fallback={
@@ -54,7 +61,9 @@ export default function PresenterModeV2() {
   const { canPick, isRevealing, lastResult, mechanic, startSelection, clearReveal } =
     useSelection();
 
-  const enabledMechanics = state.settings.enabledMechanics;
+  // Defensive: a persisted mechanic id no longer present in MECHANIC_META (renamed/removed
+  // mechanic, or state saved by a newer build) must never crash the whole show.
+  const enabledMechanics = state.settings.enabledMechanics.filter((m) => MECHANIC_META[m]);
 
   useEffect(() => {
     if (enabledMechanics.length > 0 && !enabledMechanics.includes(mechanic)) {

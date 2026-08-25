@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 const mechanicIdSchema = z.enum([
   'wheel', 'slot', 'race', 'claw', 'cards', 'stickman',
-  'elevator', 'tornado', 'dice', 'gladiator', 'alien',
+  'elevator', 'tornado', 'dice', 'gladiator', 'alien', 'toyRace',
 ]);
 
 const themeIdSchema = z.enum(['dark', 'light', 'neon', 'retro', 'space']);

@@ -1,0 +1,6 @@
+Vehicle sprites in this folder are pre-rendered (isometric, 16 rotation frames per
+vehicle, 4x4 grid, 192x192 per frame) from the "Toy Car Kit" 3D asset pack by Kenney
+(https://kenney.nl/assets/toy-car-kit), licensed under Creative Commons CC0 1.0
+(https://creativecommons.org/publicdomain/zero/1.0/). No attribution required, credit
+given voluntarily. Original assets are 3D models (GLB); rendering to sprite sheets was
+done offline with three.js + Puppeteer and is not part of this repository or its build.

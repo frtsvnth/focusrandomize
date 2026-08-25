@@ -18,4 +18,5 @@ export const V2_ADAPTERS: Partial<Record<MechanicId, React.LazyExoticComponent<R
   dice: lazy(() => import('./dice/DiceRollAdapterV2')),
   gladiator: lazy(() => import('./gladiator/GladiatorAdapterV2')),
   alien: lazy(() => import('./alien/AlienAbductionAdapterV2')),
+  toyRace: lazy(() => import('./toyRace/ToyRaceAdapterV2')),
 };

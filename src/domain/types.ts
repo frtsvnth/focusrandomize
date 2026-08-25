@@ -30,7 +30,8 @@ export type MechanicId =
   | 'tornado'
   | 'dice'
   | 'gladiator'
-  | 'alien';
+  | 'alien'
+  | 'toyRace';
 
 export type ThemeId = 'dark' | 'light' | 'neon' | 'retro' | 'space';
 

@@ -7,7 +7,7 @@ import { TeamBadge } from '../shared/TeamBadge';
 import { actions } from '../../state/actions';
 import type { MechanicId, Team } from '../../domain/types';
 
-const adapters: Record<MechanicId, React.LazyExoticComponent<React.FC<any>>> = {
+const adapters: Partial<Record<MechanicId, React.LazyExoticComponent<React.FC<any>>>> = {
   wheel: lazy(() => import('../../mechanics/wheel/WheelAdapter')),
   slot: lazy(() => import('../../mechanics/slotMachine/SlotMachineAdapter')),
   race: lazy(() => import('../../mechanics/race/RaceAdapter')),
@@ -37,6 +37,13 @@ const MechanicStage = memo(function MechanicStage({
   onComplete: (winner?: Team) => void;
 }) {
   const Component = adapters[mechanic];
+  if (!Component) {
+    return (
+      <div style={{ color: '#64748b', fontSize: 16 }}>
+        Эта механика доступна только в V2. Переключите движок в настройках.
+      </div>
+    );
+  }
   return (
     <Suspense
       fallback={
@@ -61,7 +68,9 @@ export default function PresenterMode() {
   const { canPick, isRevealing, lastResult, mechanic, startSelection, clearReveal } =
     useSelection();
 
-  const enabledMechanics = state.settings.enabledMechanics;
+  // Defensive: a persisted mechanic id no longer present in MECHANIC_META (renamed/removed
+  // mechanic, or state saved by a newer build) must never crash the whole show.
+  const enabledMechanics = state.settings.enabledMechanics.filter((m) => MECHANIC_META[m]);
 
   // If current mechanic is disabled and there are enabled ones, switch to first enabled
   useEffect(() => {

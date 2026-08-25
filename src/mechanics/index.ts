@@ -1,8 +1,11 @@
 import { lazy } from 'react';
 import type { MechanicId } from '../domain/types';
 
-/** Legacy V1 adapters, kept as a fallback for the V2 shell (all mechanics now have V2 versions). */
-export const V1_ADAPTERS: Record<MechanicId, React.LazyExoticComponent<React.FC<any>>> = {
+/**
+ * Legacy V1 adapters, kept as a fallback for the V2 shell. Partial because mechanics added
+ * after the V1->V2 migration (e.g. toyRace) only ever get a V2 adapter.
+ */
+export const V1_ADAPTERS: Partial<Record<MechanicId, React.LazyExoticComponent<React.FC<any>>>> = {
   wheel: lazy(() => import('./wheel/WheelAdapter')),
   slot: lazy(() => import('./slotMachine/SlotMachineAdapter')),
   race: lazy(() => import('./race/RaceAdapter')),

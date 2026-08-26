@@ -50,9 +50,19 @@ export function buildTractorBodyTexture(
     g.closePath();
     g.strokePath();
 
-    // Cab, with a lighter window panel.
-    drawPanel(g, 0.1 * w, 0.04 * h, 0.34 * w, 0.32 * h, 0.06 * h, palette.vehicleBody);
-    drawPanel(g, 0.15 * w, 0.08 * h, 0.2 * w, 0.16 * h, 0.03 * h, lighten(palette.vehicleBody, 0.62));
+    // Open-top tractor (no enclosed cab/windshield) — a driver sprite drawn on top of an
+    // enclosed cab used to visually read as "floating outside the tractor" since nothing ever
+    // framed them from in front. A simple open platform with a seat back reads correctly at
+    // any driver position instead — placed clear above both the chassis block (which starts
+    // at 0.34h) and the rear wheel sprite that renders in front of this texture (its top edge
+    // lands around 0.4h too), so neither one covers the seat.
+    const seatOutline = darken(palette.vehicleTrim, 0.5);
+    drawPanel(g, 0.15 * w, 0.05 * h, 0.17 * w, 0.28 * h, 0.05 * h, palette.vehicleTrim);
+    g.fillStyle(darken(palette.exhaustMetal, 0.1), 1);
+    g.fillRoundedRect(0.34 * w, 0.08 * h, 0.045 * w, 0.24 * h, w * 0.02);
+    g.lineStyle(Math.max(1, w * 0.006), seatOutline, 1);
+    g.strokeRoundedRect(0.34 * w, 0.08 * h, 0.045 * w, 0.24 * h, w * 0.02);
+    drawRoundBlob(g, 0.37 * w, 0.07 * h, 0.045 * w, palette.exhaustMetal);
 
     // Exhaust pipe, mounted at the hood/cab junction — flush with the texture's top edge.
     const exOutline = darken(palette.exhaustMetal, 0.5);
@@ -141,6 +151,16 @@ export function buildTrailerBedTexture(scene: Phaser.Scene, palette: ScenePalett
 export function buildTrailerFrontWallTexture(scene: Phaser.Scene, palette: ScenePalette, w: number, h: number): string {
   return ensureTexture(scene, `trailer-front-${Math.round(w)}x${Math.round(h)}`, w, h, (g) => {
     drawPanel(g, 0, 0, w, h, w * 0.22, palette.trailerFrontWall);
+    // A couple of horizontal plank lines so the panel reads as a wooden gate/board rather
+    // than a plain colored slab.
+    const plankColor = darken(palette.trailerFrontWall, 0.35);
+    g.lineStyle(Math.max(1, h * 0.02), plankColor, 0.55);
+    for (const t of [0.35, 0.65]) {
+      g.beginPath();
+      g.moveTo(w * 0.12, h * t);
+      g.lineTo(w * 0.88, h * t);
+      g.strokePath();
+    }
   });
 }
 

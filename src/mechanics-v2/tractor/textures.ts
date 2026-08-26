@@ -1,7 +1,7 @@
 import type * as Phaser from 'phaser';
 import type { ScenePalette } from './palette';
 import { makeRng } from '../engine/canvasUtils';
-import { darken, lighten, drawRoundBlob, ensureTexture } from './shading';
+import { darken, lighten, drawRoundBlob, drawFirTree, ensureTexture } from './shading';
 
 /**
  * Procedural environment textures (Graphics -> generateTexture, no PNG assets). Built from
@@ -73,6 +73,18 @@ export function buildHillsTexture(scene: Phaser.Scene, palette: ScenePalette, he
       g.fillEllipse(b.x - b.w * 0.22, horizonY - b.h * 0.35, b.w * 0.5, b.h * 0.9);
       g.lineStyle(Math.max(2, height * 0.006), outline, 1);
       g.strokeEllipse(b.x, horizonY, b.w, b.h * 2);
+
+      // A little treeline along the ridge — without it the bare ellipse reads as an
+      // ambiguous blob rather than a hill (this is exactly what it was doing before).
+      const treeColor = darken(palette.hills, 0.35);
+      const treeCount = 3 + Math.floor(rng() * 2);
+      for (let i = 0; i < treeCount; i++) {
+        const dxFrac = (rng() - 0.5) * 0.7;
+        const dx = dxFrac * b.w * 0.5;
+        const ridgeY = horizonY - b.h * Math.sqrt(Math.max(0, 1 - (dx / (b.w * 0.5)) ** 2));
+        const treeSize = height * (0.08 + rng() * 0.045);
+        drawFirTree(g, b.x + dx, ridgeY + treeSize * 0.14, treeSize, treeColor);
+      }
     }
   });
 }
@@ -111,20 +123,6 @@ export function buildForegroundTexture(
     g.fillStyle(palette.foregroundGrass, 1);
     g.fillRect(0, horizonY, TILE_WIDTH, height - horizonY);
 
-    // A single fence post, centered so it never straddles the tile seam.
-    const poleX = TILE_WIDTH * 0.5;
-    const poleW = TILE_WIDTH * 0.05;
-    const poleTop = horizonY - height * 0.3;
-    const poleOutline = darken(palette.foregroundPole, 0.5);
-    g.fillStyle(darken(palette.foregroundPole, 0.22), 1);
-    g.fillRoundedRect(poleX - poleW / 2 + poleW * 0.18, poleTop + poleW * 0.2, poleW, horizonY - poleTop, poleW * 0.4);
-    g.fillStyle(palette.foregroundPole, 1);
-    g.fillRoundedRect(poleX - poleW / 2, poleTop, poleW, horizonY - poleTop, poleW * 0.4);
-    g.fillStyle(lighten(palette.foregroundPole, 0.35), 0.5);
-    g.fillRoundedRect(poleX - poleW / 2 + poleW * 0.15, poleTop + poleW * 0.3, poleW * 0.3, (horizonY - poleTop) * 0.6, poleW * 0.2);
-    g.lineStyle(Math.max(2, poleW * 0.12), poleOutline, 1);
-    g.strokeRoundedRect(poleX - poleW / 2, poleTop, poleW, horizonY - poleTop, poleW * 0.4);
-
     // Grass tufts, clear of both edges.
     const tuftXs = [TILE_WIDTH * 0.12, TILE_WIDTH * 0.28, TILE_WIDTH * 0.72, TILE_WIDTH * 0.88];
     for (const tx of tuftXs) {
@@ -133,6 +131,17 @@ export function buildForegroundTexture(
         const r = height * (0.045 + rng() * 0.02);
         drawRoundBlob(g, tx + (i - 1) * r * 0.8, horizonY - r * 0.3, r, palette.foregroundGrass);
       }
+    }
+
+    // A couple of bigger bush clumps — a tighter cluster of larger blobs than the grass
+    // tufts, so the foreground doesn't read as flat grass alone.
+    const bushColor = darken(palette.foregroundGrass, 0.15);
+    const bushXs = [TILE_WIDTH * 0.2, TILE_WIDTH * 0.8];
+    for (const bx of bushXs) {
+      const r = height * (0.08 + rng() * 0.02);
+      drawRoundBlob(g, bx, horizonY - r * 0.5, r, bushColor);
+      drawRoundBlob(g, bx - r * 0.75, horizonY - r * 0.25, r * 0.72, bushColor);
+      drawRoundBlob(g, bx + r * 0.75, horizonY - r * 0.25, r * 0.72, bushColor);
     }
   });
 }

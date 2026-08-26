@@ -42,7 +42,11 @@ export interface RoadProfileOptions {
   featureXPositions?: number[];
 }
 
-const DEFAULT_LENGTH = 3200;
+// Also mirrored in runPlan.ts's own DEFAULT_COURSE_LENGTH — both default to the same course
+// length so bumpX/finaleX line up with the terrain when the scene doesn't pass an explicit one.
+// Raised from 3200 (~56%) so the ride covers more ground in the same duration, i.e. a visibly
+// faster base speed without changing how long a ride takes.
+const DEFAULT_LENGTH = 5000;
 const DEFAULT_PLATEAU_LENGTH = 420;
 const DEFAULT_FEATURE_COUNT = 7;
 const BACKGROUND_BUMP_WAVES = 3;

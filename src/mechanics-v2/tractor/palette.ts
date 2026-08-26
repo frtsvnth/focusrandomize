@@ -19,7 +19,6 @@ export interface ScenePalette {
   roadEdge: number;
   roadLine: number;
   ground: number;
-  foregroundPole: number;
   foregroundGrass: number;
   vehicleBody: number;
   vehicleTrim: number;
@@ -51,10 +50,21 @@ const FALLBACK: Record<string, string> = {
   '--surface-2': '#111827',
   '--text': '#f1f5f9',
   '--accent': '#22d3ee',
-  '--purple': '#a78bfa',
   '--success': '#34d399',
   '--warning': '#fbbf24',
 };
+
+// The tractor itself is a fixed "brand" color — blue, like the kids'-show tractor — rather
+// than theme-derived, so it reads the same in every theme; only the environment (sky, hills,
+// field, road) follows the active theme.
+const VEHICLE_BODY = '#2f7fd4';
+const VEHICLE_TRIM = '#f4b400';
+const TRAILER_BED = '#1f5fa8';
+const TRAILER_FRONT_WALL = '#3f8ee0';
+const TIRE_RUBBER = '#1c1c1c';
+const WHEEL_HUB = '#d8dce2';
+const EXHAUST_METAL = '#a9adb4';
+const DRIVER_SILHOUETTE = '#243140';
 
 function readVar(styles: CSSStyleDeclaration, name: string): string {
   const v = styles.getPropertyValue(name).trim();
@@ -68,7 +78,6 @@ export function readThemePalette(): ScenePalette {
   const surface2 = readVar(styles, '--surface-2');
   const text = readVar(styles, '--text');
   const accent = readVar(styles, '--accent');
-  const purple = readVar(styles, '--purple');
   const success = readVar(styles, '--success');
   const warning = readVar(styles, '--warning');
 
@@ -89,16 +98,15 @@ export function readThemePalette(): ScenePalette {
     roadEdge: hexToNumber(accent),
     roadLine: hexToNumber(mix(text, road, 0.5)),
     ground: hexToNumber(darken(field, 0.35)),
-    foregroundPole: hexToNumber(purple),
     foregroundGrass: hexToNumber(darken(field, 0.1)),
-    vehicleBody: hexToNumber(accent),
-    vehicleTrim: hexToNumber(warning),
-    tireRubber: hexToNumber(darken(text, 0.82)),
-    wheelHub: hexToNumber(mix(accent, text, 0.25)),
-    exhaustMetal: hexToNumber(mix(text, surface2, 0.5)),
-    driverSilhouette: hexToNumber(darken(text, 0.7)),
-    trailerBed: hexToNumber(darken(accent, 0.4)),
-    trailerFrontWall: hexToNumber(mix(accent, text, 0.15)),
+    vehicleBody: hexToNumber(VEHICLE_BODY),
+    vehicleTrim: hexToNumber(VEHICLE_TRIM),
+    tireRubber: hexToNumber(TIRE_RUBBER),
+    wheelHub: hexToNumber(WHEEL_HUB),
+    exhaustMetal: hexToNumber(EXHAUST_METAL),
+    driverSilhouette: hexToNumber(DRIVER_SILHOUETTE),
+    trailerBed: hexToNumber(TRAILER_BED),
+    trailerFrontWall: hexToNumber(TRAILER_FRONT_WALL),
   };
 }
 

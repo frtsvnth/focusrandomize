@@ -321,6 +321,9 @@ interface VehicleLayout {
   frontWallOffset: { x: number; y: number };
   frontAttachOffset: { x: number; y: number };
   hitchLength: number;
+  trailerWheelR: number;
+  trailerWheelOffsetA: { x: number; y: number };
+  trailerWheelOffsetB: { x: number; y: number };
 }
 
 function computeLayout(height: number): VehicleLayout {
@@ -335,9 +338,13 @@ function computeLayout(height: number): VehicleLayout {
     x: rearWheelOffset.x - 0.24 * bodyW,
     y: -rearWheelR * 0.15 - 0.76 * bodyH,
   };
+  // Sized/placed so the driver's torso lands on the open seat drawn into the body texture
+  // (vehicleTextures.ts's buildTractorBodyTexture) — an open platform, not an enclosed cab, so
+  // there's no windshield frame for the driver sprite to visually sit "outside" of.
+  const driverSize = bodyH * 0.42;
   const driverOffset = {
-    x: bodyOffset.x + 0.25 * bodyW - bodyH * 0.21,
-    y: bodyOffset.y + 0.16 * bodyH - bodyH * 0.21,
+    x: bodyOffset.x + 0.24 * bodyW - driverSize * 0.5,
+    y: bodyOffset.y + 0.1 * bodyH - driverSize * 0.62,
   };
   const hitchOffset = {
     x: bodyOffset.x + 0.06 * bodyW,
@@ -355,11 +362,18 @@ function computeLayout(height: number): VehicleLayout {
   const trailerH = height * 0.3;
   const trailerW = trailerH * 1.5;
   const bedOffset = { x: -trailerW * 0.5, y: -0.78 * trailerH };
-  const frontWallW = trailerW * 0.13;
-  const frontWallH = trailerH * 0.68;
-  const frontWallOffset = { x: trailerW * 0.5 - frontWallW * 1.3, y: -frontWallH * 0.98 };
+  // Wide enough to read as a board/gate rather than a stray pillar (a much taller-than-wide
+  // panel was the "какие-то фиолетовые столбы" feedback — this is the fix).
+  const frontWallW = trailerW * 0.22;
+  const frontWallH = trailerH * 0.62;
+  const frontWallOffset = { x: trailerW * 0.5 - frontWallW * 1.15, y: -frontWallH * 0.98 };
   const frontAttachOffset = { x: trailerW * 0.48, y: -trailerH * 0.08 };
   const hitchLength = bodyW * 0.55 + trailerW * 0.56;
+
+  const trailerWheelR = trailerH * 0.16;
+  const trailerWheelY = bedOffset.y + trailerH - trailerWheelR * 0.35;
+  const trailerWheelOffsetA = { x: bedOffset.x + trailerW * 0.26, y: trailerWheelY };
+  const trailerWheelOffsetB = { x: bedOffset.x + trailerW * 0.66, y: trailerWheelY };
 
   return {
     bodyW,
@@ -380,6 +394,9 @@ function computeLayout(height: number): VehicleLayout {
     frontWallOffset,
     frontAttachOffset,
     hitchLength,
+    trailerWheelR,
+    trailerWheelOffsetA,
+    trailerWheelOffsetB,
   };
 }
 
@@ -424,6 +441,8 @@ export function createTractorScene(PhaserNS: typeof Phaser): typeof Phaser.Scene
     private driverSprite!: Phaser.GameObjects.Sprite;
     private trailerBedSprite!: Phaser.GameObjects.Sprite;
     private trailerFrontWallSprite!: Phaser.GameObjects.Sprite;
+    private trailerWheelA!: Phaser.GameObjects.Sprite;
+    private trailerWheelB!: Phaser.GameObjects.Sprite;
     private headlightSprite?: Phaser.GameObjects.Sprite;
     private starSprites: Phaser.GameObjects.Sprite[] = [];
     private starTextureKeys: string[] = [];
@@ -443,6 +462,7 @@ export function createTractorScene(PhaserNS: typeof Phaser): typeof Phaser.Scene
     private driverKey = '';
     private bedKey = '';
     private frontWallKey = '';
+    private trailerWheelKey = '';
     private landingDustKey = '';
     private smokeKey = '';
     private wheelDustKey = '';
@@ -655,6 +675,8 @@ export function createTractorScene(PhaserNS: typeof Phaser): typeof Phaser.Scene
       const wheelSpin = speed * dt;
       this.rearWheel.rotation += wheelSpin / this.layout.rearWheelR;
       this.frontWheel.rotation += wheelSpin / this.layout.frontWheelR;
+      this.trailerWheelA.rotation += wheelSpin / this.layout.trailerWheelR;
+      this.trailerWheelB.rotation += wheelSpin / this.layout.trailerWheelR;
 
       this.updateDrawbar();
       this.updateEjectionSchedule(trailerX, speed);
@@ -1366,6 +1388,12 @@ export function createTractorScene(PhaserNS: typeof Phaser): typeof Phaser.Scene
       );
       this.frontWheel.setTexture(this.frontWheelKey);
 
+      this.trailerWheelKey = this.repaintPaletteTexture(this.trailerWheelKey, () =>
+        buildWheelTexture(this, this.palette, L.trailerWheelR, `tractor-wheel-trailer-${seed}`)
+      );
+      this.trailerWheelA.setTexture(this.trailerWheelKey);
+      this.trailerWheelB.setTexture(this.trailerWheelKey);
+
       const driverW = L.bodyH * 0.42;
       this.driverKey = this.repaintPaletteTexture(this.driverKey, () =>
         buildDriverTexture(this, this.palette, driverW, driverW)
@@ -1382,41 +1410,55 @@ export function createTractorScene(PhaserNS: typeof Phaser): typeof Phaser.Scene
       );
       this.trailerFrontWallSprite.setTexture(this.frontWallKey);
 
+      // killAll() first on every emitter whose texture is about to be removed: a *live*
+      // particle holds its own frame reference independent of the emitter's "texture for new
+      // particles" — removing the old texture out from under one still mid-flight crashes the
+      // WebGL renderer (Frame.glTexture reads null) on the next draw. Losing a few in-flight
+      // dust/smoke puffs to a theme switch is an imperceptible, acceptable trade.
+      this.dustEmitter.killAll();
       this.landingDustKey = this.repaintPaletteTexture(this.landingDustKey, () =>
         buildDustTexture(this, this.palette, Math.max(10, this.personH * 0.35))
       );
       this.dustEmitter.setTexture(this.landingDustKey);
 
+      this.exhaustEmitter.killAll();
       this.smokeKey = this.repaintPaletteTexture(this.smokeKey, () =>
         buildSmokeTexture(this, this.palette, height * 0.045)
       );
       this.exhaustEmitter.setTexture(this.smokeKey);
 
+      this.wheelDustEmitter.killAll();
       this.wheelDustKey = this.repaintPaletteTexture(this.wheelDustKey, () =>
         buildDustTexture(this, this.palette, height * 0.025)
       );
       this.wheelDustEmitter.setTexture(this.wheelDustKey);
 
+      this.clodEmitter.killAll();
       this.clodKey = this.repaintPaletteTexture(this.clodKey, () => buildClodTexture(this, this.palette, height * 0.03));
       this.clodEmitter.setTexture(this.clodKey);
 
+      this.flightTrailEmitter.killAll();
       this.flightTrailKey = this.repaintPaletteTexture(this.flightTrailKey, () =>
         buildDustTexture(this, this.palette, height * 0.02)
       );
       this.flightTrailEmitter.setTexture(this.flightTrailKey);
 
+      this.hayEmitter.killAll();
       this.hayKey = this.repaintPaletteTexture(this.hayKey, () =>
         buildHayTexture(this, this.palette, height * 0.045, height * 0.014)
       );
       this.hayEmitter.setTexture(this.hayKey);
 
-      // Dazed-stars texture (spawnDazedStars spawns new sprites from this key on demand) —
-      // regenerated so the next spawn picks up the new palette; any currently-live dazed-star
-      // sprites just keep showing their old (still perfectly valid) frame until they expire.
+      // Dazed-stars texture — spawnDazedStars spawns new sprites from this key on demand, but
+      // any *currently alive* dazed-star sprites (regular Sprites, same stale-reference risk
+      // as above) need their frame re-bound explicitly too, not just future spawns.
       const dazedStarSize = Math.max(12, this.personH * 0.3);
       this.starTextureKey = this.repaintPaletteTexture(this.starTextureKey, () =>
         buildStarTexture(this, this.palette, dazedStarSize)
       );
+      for (const e of this.ejectedRigs) {
+        for (const star of e.starSprites) star.setTexture(this.starTextureKey);
+      }
 
       // Confetti and every passenger/name-chip/team-tint visual are intentionally untouched —
       // team colors never change on a theme switch.
@@ -1491,18 +1533,20 @@ export function createTractorScene(PhaserNS: typeof Phaser): typeof Phaser.Scene
       this.driverKey = buildDriverTexture(this, this.palette, driverW, driverH);
       this.bedKey = buildTrailerBedTexture(this, this.palette, L.trailerW, L.trailerH);
       this.frontWallKey = buildTrailerFrontWallTexture(this, this.palette, L.frontWallW, L.frontWallH);
+      this.trailerWheelKey = buildWheelTexture(this, this.palette, L.trailerWheelR, `tractor-wheel-trailer-${seed}`);
 
       this.rearWheel = this.add.sprite(L.rearWheelOffset.x, L.rearWheelOffset.y, this.rearWheelKey);
       this.frontWheel = this.add.sprite(L.frontWheelOffset.x, L.frontWheelOffset.y, this.frontWheelKey);
       this.tractorBodySprite = this.add.sprite(L.bodyOffset.x, L.bodyOffset.y, this.bodyKey).setOrigin(0, 0);
       this.driverSprite = this.add.sprite(L.driverOffset.x, L.driverOffset.y, this.driverKey).setOrigin(0, 0);
 
-      // Render order back-to-front within the assembly: rear wheel tucked under the fender,
-      // body on top of it, driver in the cab window, front wheel fully exposed out front.
+      // Render order back-to-front within the assembly: body (with its fender arches) painted
+      // first, then both wheels on top so they read as sitting in front of the chassis rather
+      // than tucked away behind it.
       this.tractorContainer = this.add.container(0, 0, [
-        this.rearWheel,
         this.tractorBodySprite,
         this.driverSprite,
+        this.rearWheel,
         this.frontWheel,
       ]);
       this.tractorContainer.setDepth(DEPTH_TRACTOR);
@@ -1512,11 +1556,15 @@ export function createTractorScene(PhaserNS: typeof Phaser): typeof Phaser.Scene
       this.trailerFrontWallSprite = this.add
         .sprite(L.frontWallOffset.x, L.frontWallOffset.y, this.frontWallKey)
         .setOrigin(0, 0);
+      this.trailerWheelA = this.add.sprite(L.trailerWheelOffsetA.x, L.trailerWheelOffsetA.y, this.trailerWheelKey);
+      this.trailerWheelB = this.add.sprite(L.trailerWheelOffsetB.x, L.trailerWheelOffsetB.y, this.trailerWheelKey);
       const passengers = this.buildPassengers(seed);
       // `frontWall` is the front board — added last so it renders in front of the bed and
-      // every passenger.
+      // every passenger. Wheels sit right after the bed, in front of it, same as the tractor's.
       this.trailerContainer = this.add.container(0, 0, [
         this.trailerBedSprite,
+        this.trailerWheelA,
+        this.trailerWheelB,
         ...passengers,
         this.trailerFrontWallSprite,
       ]);

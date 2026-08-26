@@ -92,7 +92,6 @@ export default function TractorAdapterV2({
       });
       game.scene.start('Tractor', initData);
       gameRef.current = game;
-      (window as any).__tractorGameDebug = game;
     })();
 
     return () => {

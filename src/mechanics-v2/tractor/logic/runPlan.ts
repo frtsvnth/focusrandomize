@@ -61,7 +61,8 @@ const DEFAULT_DURATION = 25;
 const REDUCED_MIN_DURATION = 6;
 const REDUCED_MAX_DURATION = 10;
 const REDUCED_DEFAULT_DURATION = 8;
-const DEFAULT_COURSE_LENGTH = 3200;
+// Must match road.ts's own DEFAULT_LENGTH — see that file's comment for why it's 5000.
+const DEFAULT_COURSE_LENGTH = 5000;
 
 /** At 10+ teams, pair losers up two-to-a-hump so the pacing budget can still cover everyone. */
 const DOUBLE_EJECTION_TEAM_THRESHOLD = 10;

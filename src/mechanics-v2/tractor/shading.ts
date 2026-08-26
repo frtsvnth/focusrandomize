@@ -104,6 +104,49 @@ export function drawTintablePanel(
   g.strokeRoundedRect(x, y, w, h, radius);
 }
 
+/**
+ * A stacked-triangle fir tree — three tapering tiers plus a trunk, each tier a flat-shaded
+ * triangle (not the shadow/highlight/outline blob recipe, since a tree silhouette reads better
+ * as clean flat shapes). `baseY` is where the trunk meets the ground; the tree extends upward
+ * from there. Used to break up otherwise-ambiguous background shapes (hills, foreground) into
+ * something immediately recognizable.
+ */
+export function drawFirTree(
+  g: Phaser.GameObjects.Graphics,
+  x: number,
+  baseY: number,
+  size: number,
+  foliage: number
+) {
+  const trunk = darken(foliage, 0.65);
+  const outline = darken(foliage, 0.5);
+
+  g.fillStyle(trunk, 1);
+  g.fillRect(x - size * 0.06, baseY - size * 0.14, size * 0.12, size * 0.16);
+
+  const tiers = [
+    { apex: size * 0.62, base: size * 0.14, halfW: size * 0.32, shade: darken(foliage, 0.12) },
+    { apex: size * 0.82, base: size * 0.34, halfW: size * 0.24, shade: foliage },
+    { apex: size, base: size * 0.5, halfW: size * 0.15, shade: lighten(foliage, 0.15) },
+  ];
+  for (const t of tiers) {
+    g.fillStyle(t.shade, 1);
+    g.beginPath();
+    g.moveTo(x, baseY - t.apex);
+    g.lineTo(x + t.halfW, baseY - t.base);
+    g.lineTo(x - t.halfW, baseY - t.base);
+    g.closePath();
+    g.fillPath();
+  }
+  g.lineStyle(Math.max(1, size * 0.02), outline, 0.7);
+  g.beginPath();
+  g.moveTo(x, baseY - tiers[2].apex);
+  g.lineTo(x + tiers[0].halfW, baseY - tiers[0].base);
+  g.lineTo(x - tiers[0].halfW, baseY - tiers[0].base);
+  g.closePath();
+  g.strokePath();
+}
+
 export function ensureTexture(
   scene: Phaser.Scene,
   key: string,

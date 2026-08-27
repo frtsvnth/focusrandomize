@@ -14,6 +14,7 @@ export function useSoundV2() {
     null
   );
   const windRef = useRef<{ src: AudioBufferSourceNode; filter: BiquadFilterNode; gain: GainNode } | null>(null);
+  const chaseTensionRef = useRef<{ osc: OscillatorNode; gain: GainNode } | null>(null);
 
   const ensureCtx = () => {
     if (!ctxRef.current) {
@@ -512,6 +513,82 @@ export function useSoundV2() {
     [state.settings.soundEnabled]
   );
 
+  // --- hideSeek mechanic: footsteps + rising chase-tension drone below -------------------
+  // A single light footfall, reused for both the scattering teams and the seeker (a lower
+  // pitch than playHoofbeat's gallop-thud, and much shorter — meant to be heard once per grid
+  // step, potentially several overlapping at once during the scatter phase, hence the shared
+  // master bus rather than straight to destination).
+
+  const playFootstep = useCallback(
+    (pitch = 1) => {
+      if (!enabled()) return;
+      const ctx = ensureCtx();
+      const t = ctx.currentTime;
+      const bus = getMasterBus(ctx);
+      const src = ctx.createBufferSource();
+      src.buffer = getNoiseBuffer(ctx);
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = 550 * pitch;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.08, t);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+      src.connect(filter).connect(gain).connect(bus);
+      src.start(t);
+      src.stop(t + 0.07);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [state.settings.soundEnabled]
+  );
+
+  const stopChaseTension = useCallback(() => {
+    const c = chaseTensionRef.current;
+    if (!c) return;
+    const ctx = ensureCtx();
+    const t = ctx.currentTime;
+    c.gain.gain.cancelScheduledValues(t);
+    c.gain.gain.setValueAtTime(c.gain.gain.value, t);
+    c.gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+    c.osc.stop(t + 0.35);
+    chaseTensionRef.current = null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** progress 0..1 = how far into the chase (or how close to the target) — a low pulsing drone
+   *  that rises in pitch/volume as it approaches 1. The "quickening heartbeat" feel comes from
+   *  the scene calling playFootstep more often as the chase's own pacing tightens, not from a
+   *  separate LFO here — keeps this to one simple rising drone rather than a second audio graph. */
+  const setChaseTension = useCallback(
+    (progress: number) => {
+      if (!enabled()) {
+        stopChaseTension();
+        return;
+      }
+      const ctx = ensureCtx();
+      const now = ctx.currentTime;
+      const clamped = Math.min(1, Math.max(0, progress));
+
+      if (!chaseTensionRef.current) {
+        const osc = ctx.createOscillator();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(55, now);
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.02, now + 0.3);
+        const bus = getMasterBus(ctx);
+        osc.connect(gain).connect(bus);
+        osc.start(now);
+        chaseTensionRef.current = { osc, gain };
+      }
+
+      const c = chaseTensionRef.current;
+      c.osc.frequency.linearRampToValueAtTime(55 + clamped * 40, now + 0.15);
+      c.gain.gain.linearRampToValueAtTime(0.02 + clamped * 0.05, now + 0.15);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [state.settings.soundEnabled]
+  );
+
   return {
     playTick,
     playWhoosh,
@@ -529,5 +606,8 @@ export function useSoundV2() {
     playEjectWhoosh,
     playComicHonk,
     playConfettiPops,
+    playFootstep,
+    setChaseTension,
+    stopChaseTension,
   };
 }

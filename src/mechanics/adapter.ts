@@ -25,4 +25,5 @@ export const MECHANIC_META: Record<
   alien: { label: 'Похищение', description: 'НЛО выбирает жертву' },
   toyRace: { label: 'Игрушечные гонки', description: 'Машинки мчатся по трассе' },
   tractor: { label: 'Трактор', description: 'Трактор трясёт прицеп на ухабах' },
+  hideSeek: { label: 'Стас идет искать', description: 'Ведущий ищет команду в лабиринте' },
 };

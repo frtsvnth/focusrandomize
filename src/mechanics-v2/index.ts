@@ -20,4 +20,5 @@ export const V2_ADAPTERS: Partial<Record<MechanicId, React.LazyExoticComponent<R
   alien: lazy(() => import('./alien/AlienAbductionAdapterV2')),
   toyRace: lazy(() => import('./toyRace/ToyRaceAdapterV2')),
   tractor: lazy(() => import('./tractor/TractorAdapterV2')),
+  hideSeek: lazy(() => import('./hideSeek/HideSeekAdapterV2')),
 };

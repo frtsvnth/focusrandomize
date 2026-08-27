@@ -32,7 +32,8 @@ export type MechanicId =
   | 'gladiator'
   | 'alien'
   | 'toyRace'
-  | 'tractor';
+  | 'tractor'
+  | 'hideSeek';
 
 export type ThemeId = 'dark' | 'light' | 'neon' | 'retro' | 'space';
 

@@ -1600,10 +1600,17 @@ export function createTractorScene(PhaserNS: typeof Phaser): typeof Phaser.Scene
       });
 
       const scale = this.seatLayout.scale;
+      // this.personH is the *effective* (already-shrunk) height, used everywhere else in the
+      // scene (particle sizing, dazed-star placement, confetti height) — but the texture
+      // dimensions below must come from the *natural* size instead, since container.setScale
+      // (below) applies the shrink a second time. Building the head/body/arm textures from
+      // this.personH here was compounding the two, quietly squaring the shrink factor — at a
+      // typical 8-team scale of ~0.44 that made passengers render at roughly a fifth of their
+      // intended size, just a sliver poking out under their (correctly-sized) name chip.
       this.personH = naturalPersonH * scale;
-      const headR = this.personH * 0.19;
-      const bodyW = this.personH * 0.42;
-      const bodyH = this.personH * 0.5;
+      const headR = naturalPersonH * 0.19;
+      const bodyW = naturalPersonH * 0.42;
+      const bodyH = naturalPersonH * 0.5;
       const armW = bodyW * 0.28;
       const armH = bodyH * 0.68;
 
@@ -1611,8 +1618,11 @@ export function createTractorScene(PhaserNS: typeof Phaser): typeof Phaser.Scene
       const bodyKey = buildPersonBodyTexture(this, bodyW, bodyH);
       const armKey = buildPersonArmTexture(this, armW, armH);
 
-      // Standing on a raised bench, offset up so the back row's heads clear the front row.
-      const rowYOffset = [0, -this.personH * 0.8];
+      // Standing on a raised bench, offset up so the back row's heads clear the front row. A
+      // standing person's own effective height (feet to head-top) is ~0.88*personH, so 0.8 was
+      // just short of full clearance — the back row's feet/lower body ended up masked behind
+      // the front row's heads (visually reading as "half of them didn't render").
+      const rowYOffset = [0, -this.personH * 1.05];
 
       const rng = makeRng(seed + 777);
       const sprites: Phaser.GameObjects.Container[] = [];

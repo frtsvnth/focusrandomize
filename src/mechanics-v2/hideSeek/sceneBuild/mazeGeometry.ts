@@ -67,17 +67,40 @@ function wallTransform(ax: number, az: number, bx: number, bz: number, height: n
   return { x: (ax + bx) / 2, z: (az + bz) / 2, angleY: Math.atan2(dx, dz), length, height, thickness };
 }
 
-/** Builds floor + walls as InstancedMesh (cheap for large mazes) and adds them to `scene`. */
-export function buildMazeGroup(scene: THREE.Scene, grid: Grid): THREE.Group {
+export interface WallOpening {
+  r: number;
+  c: number;
+  dir: number;
+}
+
+export interface ExtraFloorCell {
+  r: number;
+  c: number;
+}
+
+/** Builds floor + walls as InstancedMesh (cheap for large mazes) and adds them to `scene`.
+ *  `openings` skips specific wall segments even though `grid` still logically has a wall
+ *  there (pathfinding/`hasWall` stay untouched) — used for the entrance doorway, a purely
+ *  visual gap rather than a change to the maze's actual connectivity. `extraFloorCells` adds
+ *  floor tiles outside the grid's own bounds (fractional (r,c) allowed) — the staging queue
+ *  standing outside the door needs visible ground to stand on too. */
+export function buildMazeGroup(
+  scene: THREE.Scene,
+  grid: Grid,
+  openings: WallOpening[] = [],
+  extraFloorCells: ExtraFloorCell[] = []
+): THREE.Group {
   const group = new THREE.Group();
   const h = grid.length;
   const w = grid[0].length;
   const dummy = new THREE.Object3D();
+  const openSet = new Set(openings.map((o) => `${o.r},${o.c},${o.dir}`));
+  const isOpen = (r: number, c: number, dir: number) => openSet.has(`${r},${c},${dir}`);
 
   const floorGeo = createFloorGeometry();
   const floorTex = makeStoneTexture('#93938f', '#68686a');
   const floorMat = new THREE.MeshBasicMaterial({ map: floorTex, side: THREE.DoubleSide });
-  const floorMesh = new THREE.InstancedMesh(floorGeo, floorMat, h * w);
+  const floorMesh = new THREE.InstancedMesh(floorGeo, floorMat, h * w + extraFloorCells.length);
   let fi = 0;
   for (let r = 0; r < h; r++) {
     for (let c = 0; c < w; c++) {
@@ -88,6 +111,14 @@ export function buildMazeGroup(scene: THREE.Scene, grid: Grid): THREE.Group {
       dummy.updateMatrix();
       floorMesh.setMatrixAt(fi++, dummy.matrix);
     }
+  }
+  for (const cell of extraFloorCells) {
+    const p = cellToWorld(cell.r, cell.c);
+    dummy.position.set(p.x, 0, p.z);
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.set(1, 1, 1);
+    dummy.updateMatrix();
+    floorMesh.setMatrixAt(fi++, dummy.matrix);
   }
   floorMesh.instanceMatrix.needsUpdate = true;
   group.add(floorMesh);
@@ -109,12 +140,12 @@ export function buildMazeGroup(scene: THREE.Scene, grid: Grid): THREE.Group {
   for (let r = 0; r < h; r++) {
     for (let c = 0; c < w; c++) {
       const cell = grid[r][c];
-      if (hasWall(cell, N)) addWall(N, r, c);
-      if (hasWall(cell, E)) addWall(E, r, c);
+      if (hasWall(cell, N) && !isOpen(r, c, N)) addWall(N, r, c);
+      if (hasWall(cell, E) && !isOpen(r, c, E)) addWall(E, r, c);
     }
   }
-  for (let c = 0; c < w; c++) if (hasWall(grid[h - 1][c], S)) addWall(S, h - 1, c);
-  for (let r = 0; r < h; r++) if (hasWall(grid[r][0], W)) addWall(W, r, 0);
+  for (let c = 0; c < w; c++) if (hasWall(grid[h - 1][c], S) && !isOpen(h - 1, c, S)) addWall(S, h - 1, c);
+  for (let r = 0; r < h; r++) if (hasWall(grid[r][0], W) && !isOpen(r, 0, W)) addWall(W, r, 0);
 
   if (wallTransforms.length > 0) {
     const wallMesh = new THREE.InstancedMesh(wallGeo, wallMat, wallTransforms.length);

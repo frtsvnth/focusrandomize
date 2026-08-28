@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { computeMazeSize } from './mazeSize';
 
-// The adapter now always passes a fixed square design resolution (screen size only scales the
-// *display* via CSS, never the simulated field) — mirror that here.
-const DESIGN = { designWidth: 1600, designHeight: 1600 };
+// The adapter always passes this fixed landscape design resolution (screen size only scales
+// the *display* via CSS, never the simulated field) — mirror that here.
+const DESIGN = { designWidth: 1500, designHeight: 820 };
 
 describe('computeMazeSize', () => {
   it('always yields at least 2x the team count in total cells', () => {
@@ -32,18 +32,25 @@ describe('computeMazeSize', () => {
     }
   });
 
-  it('yields a roughly square maze for a square design resolution', () => {
+  it('yields a maze whose aspect ratio is close to the design resolution\'s own aspect', () => {
+    const designAspect = DESIGN.designWidth / DESIGN.designHeight;
     for (const teamCount of [1, 8, 20]) {
       const { width, height } = computeMazeSize({ teamCount, ...DESIGN });
-      expect(Math.abs(width - height)).toBeLessThanOrEqual(2);
+      expect(Math.abs(width / height - designAspect)).toBeLessThan(0.6);
     }
   });
 
   it('is a pure function of team count + design resolution, independent of any screen size', () => {
     // Same inputs must yield the same maze regardless of what real viewport called it.
-    const a = computeMazeSize({ teamCount: 8, designWidth: 1600, designHeight: 1600 });
-    const b = computeMazeSize({ teamCount: 8, designWidth: 1600, designHeight: 1600 });
+    const a = computeMazeSize({ teamCount: 8, ...DESIGN });
+    const b = computeMazeSize({ teamCount: 8, ...DESIGN });
     expect(a).toEqual(b);
+  });
+
+  it('keeps a typical roster\'s maze to a moderate cell count, not a sprawling one', () => {
+    const { width, height } = computeMazeSize({ teamCount: 8, ...DESIGN });
+    expect(width * height).toBeGreaterThan(150);
+    expect(width * height).toBeLessThan(350);
   });
 
   it('reduced motion always stays within its own tighter per-dimension cap', () => {

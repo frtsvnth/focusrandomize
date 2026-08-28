@@ -27,12 +27,15 @@ describe('buildHideSeekPlan', () => {
     expect(cellsA).not.toEqual(cellsB);
   });
 
-  it('always ends the chase path at the target team\'s own scatter cell', () => {
+  it('always ends the chase one cell short of the target — adjacent, with no wall between them', () => {
+    const grid = generateMaze(12, 9, 42);
     for (const seed of [1, 2, 3, 4, 5, 999]) {
-      const plan = buildHideSeekPlan(baseInput({ seed }));
+      const plan = buildHideSeekPlan(baseInput({ grid, seed }));
       const targetScatter = plan.scatter.find((s) => s.teamId === plan.targetTeamId)!;
       const lastChaseCell = plan.chasePath[plan.chasePath.length - 1].cell;
-      expect(lastChaseCell).toEqual(targetScatter.targetCell);
+      expect(lastChaseCell).not.toEqual(targetScatter.targetCell);
+      const neighbors = neighborsOf(grid, lastChaseCell[0], lastChaseCell[1]).map((c) => c.join(','));
+      expect(neighbors).toContain(targetScatter.targetCell.join(','));
     }
   });
 

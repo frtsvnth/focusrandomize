@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import type { MechanicAdapterV2Props } from '../adapter';
 import { HideSeekScene } from './HideSeekScene';
 
-/** Fixed square simulation resolution — see the comment on `width`/`height` below. */
-const DESIGN_SIZE = 1600;
+/** Fixed landscape simulation resolution — see the comment on `width`/`height` below. */
+const DESIGN_WIDTH = 1500;
+const DESIGN_HEIGHT = 820;
 
 export default function HideSeekAdapterV2({
   teams,
@@ -18,12 +19,12 @@ export default function HideSeekAdapterV2({
   const [caption, setCaption] = useState<string | null>(null);
 
   // Unlike the other V2 mechanics (which size their "design resolution" off the viewport, e.g.
-  // TractorAdapterV2's `Math.min(1500, innerWidth*0.92)`), the maze's actual field is a FIXED
-  // square — the viewport only changes how large that field is *displayed* (via the CSS below),
-  // never what's actually simulated (maze size, character layout, camera math all key off this
+  // TractorAdapterV2's `Math.min(1500, innerWidth*0.92)`), the maze's actual field is FIXED —
+  // the viewport only changes how large that field is *displayed* (via the CSS below), never
+  // what's actually simulated (maze size, character layout, camera math all key off this
   // constant). That keeps a given seed's maze/scatter identical on every screen.
-  const width = DESIGN_SIZE;
-  const height = DESIGN_SIZE;
+  const width = DESIGN_WIDTH;
+  const height = DESIGN_HEIGHT;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -67,11 +68,11 @@ export default function HideSeekAdapterV2({
     <div
       style={{
         position: 'relative',
-        // Square, and sized only by the smaller viewport dimension — the field itself never
-        // changes shape/content with screen size, only how big it's shown (see `width`/
-        // `height` above, which stay fixed regardless of this).
-        width: 'min(92vw, 82vh, 1100px)',
-        aspectRatio: '1 / 1',
+        // Landscape, same footprint as TractorAdapterV2 — uses the screen's own width rather
+        // than being boxed into a square capped by viewport height. Purely a display size; the
+        // simulated field itself stays fixed (see `width`/`height` above).
+        width: 'min(1500px, 92vw)',
+        height: 'clamp(420px, 62vh, 760px)',
         borderRadius: 24,
         overflow: 'hidden',
         border: '4px solid var(--surface-2)',

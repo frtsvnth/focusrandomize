@@ -62,6 +62,11 @@ const PHASE_REDUCED: PhaseConstants = {
 const SCATTER_STAGGER_FRACTION = 0.15;
 const FAKEOUT_SEED_OFFSET = 7001;
 const FAKEOUT_PAUSE_SEC_NORMAL = 0.5;
+// The last few cells before "found" take this many times longer per step than a normal one —
+// a deliberate slowdown for suspense, not a change to the total chase duration (the weighted
+// split below still sums to exactly `chaseDurationSec`).
+const CHASE_SLOWDOWN_STEPS = 3;
+const CHASE_SLOWDOWN_WEIGHT = 2.6;
 
 export interface HideSeekPhaseTimes {
   introBeatEnd: number;
@@ -170,7 +175,11 @@ function buildChasePath(
   seed: number,
   reducedMotion: boolean
 ): ChaseStep[] {
-  const path = findPath(grid, entrance[0], entrance[1], targetCell[0], targetCell[1]) ?? [entrance, targetCell];
+  const fullPath = findPath(grid, entrance[0], entrance[1], targetCell[0], targetCell[1]) ?? [entrance, targetCell];
+  // Stop one cell short of the target's own cell: "found" is the seeker reaching the nearest
+  // wall-free neighbor of the hiding team — the previous cell on this exact shortest path, by
+  // construction — not the seeker physically standing on top of their model.
+  const path = fullPath.length >= 2 ? fullPath.slice(0, -1) : fullPath;
 
   const eligible: number[] = [];
   for (let i = 2; i < path.length - 2; i++) {
@@ -195,13 +204,20 @@ function buildChasePath(
 
   const stepCount = Math.max(1, path.length - 1);
   const walkBudget = chaseDurationSec - fakeoutIndices.size * fakeoutPauseSec;
-  const perStepSec = walkBudget / stepCount;
+
+  // Weighted split instead of a uniform per-step time: the final few steps get a much bigger
+  // share of the budget (i.e. take longer, feel slower) while the sum still lands on exactly
+  // `walkBudget` — a deliberate suspense beat right before "found".
+  const slowSteps = reducedMotion ? Math.min(1, stepCount) : Math.min(CHASE_SLOWDOWN_STEPS, stepCount);
+  const weights = Array.from({ length: stepCount }, (_, i) => (i >= stepCount - slowSteps ? CHASE_SLOWDOWN_WEIGHT : 1));
+  const weightSum = weights.reduce((a, b) => a + b, 0);
+  const stepDurations = weights.map((w) => (walkBudget * w) / weightSum);
 
   const chasePath: ChaseStep[] = [{ cell: path[0], arriveSec: approachEnd, fakeoutPause: fakeoutIndices.has(0) }];
   let t = approachEnd;
   for (let i = 1; i < path.length; i++) {
     const prevPaused = fakeoutIndices.has(i - 1);
-    t += perStepSec + (prevPaused ? fakeoutPauseSec : 0);
+    t += stepDurations[i - 1] + (prevPaused ? fakeoutPauseSec : 0);
     const arriveSec = i === path.length - 1 ? approachEnd + chaseDurationSec : t;
     chasePath.push({ cell: path[i], arriveSec, fakeoutPause: fakeoutIndices.has(i) });
   }

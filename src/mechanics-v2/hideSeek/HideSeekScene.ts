@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import type { Team } from '../../domain/types';
 import type { SoundV2Api } from '../adapter';
 import { computeMazeSize } from './logic/mazeSize';
-import { generateMaze, type Grid } from './logic/maze';
+import { generateMaze, N, type Grid } from './logic/maze';
 import { buildHideSeekPlan, type HideSeekPlan, type ChaseStep } from './logic/choreography';
 import { buildMazeGroup, cellToWorld, mazeWorldBounds } from './sceneBuild/mazeGeometry';
 import {
@@ -38,14 +38,15 @@ export interface HideSeekInitData {
 }
 
 const ENTRANCE: [number, number] = [0, 0];
-const OUTWARD_LEN = Math.hypot(1, 1);
-const OUTWARD = { x: 1 / OUTWARD_LEN, z: 1 / OUTWARD_LEN };
-
-const TEAM_JITTER_RADIUS = 65;
-const SEEKER_OFFSET = 60;
+// The queue stands one row "north" of the entrance (through the doorway opened in that wall —
+// see mount()'s `openings`), the seeker one row further back still — both purely virtual grid
+// coordinates (never touch the actual `grid` array), reusing `cellToWorld`'s math as-is.
+const DOOR_ROW = -1;
+const SEEKER_ROW = -2;
+const TEAM_ENTRY_DURATION = 0.4;
 const APPROACH_ZOOM_FRACTION = 0.5;
 const PULLBACK_DURATION_FRACTION = 0.3;
-const CHASE_RADIUS = 345; // ~15% wider than the original 300 — less zoom, more maze visible
+const CHASE_RADIUS = 345;
 const FANFARE_DELAY_SEC = 0.2;
 const FOUND_PULSE_DURATION = 0.3;
 const FAKEOUT_WOBBLE_RAD = 0.35;
@@ -86,6 +87,11 @@ function crossedAKeyframe(keyframes: Keyframe[], prev: number, t: number): boole
   return false;
 }
 
+function facingToward(from: { x: number; z: number }, to: { x: number; z: number }): number {
+  if (from.x === to.x && from.z === to.z) return 0;
+  return Math.atan2(to.x - from.x, to.z - from.z);
+}
+
 function buildLights(): THREE.Group {
   const group = new THREE.Group();
   group.add(new THREE.HemisphereLight(0xffffff, 0x33303a, 1.0));
@@ -113,11 +119,10 @@ export class HideSeekScene {
   private plan!: HideSeekPlan;
   private teamRigs = new Map<string, CharacterRig>();
   private teamKeyframes = new Map<string, Keyframe[]>();
-  private teamJitter = new Map<string, { x: number; z: number }>();
+  private teamStagingPos = new Map<string, { x: number; z: number }>();
   private teamAnim = new Map<string, AnimState>();
   private seekerRig!: CharacterRig;
   private seekerAnim: AnimState = { phase: 0, amount: 0 };
-  private stagingCenter = { x: 0, z: 0 };
   private seekerRestPos = { x: 0, z: 0 };
   private entranceWorld = { x: 0, z: 0 };
   private targetChipBaseScale: THREE.Vector2 | null = null;
@@ -158,7 +163,16 @@ export class HideSeekScene {
 
     const mazeSize = computeMazeSize({ teamCount: teams.length, designWidth: width, designHeight: height, reducedMotion });
     const grid = generateMaze(mazeSize.width, mazeSize.height, seed);
-    buildMazeGroup(this.scene, grid);
+
+    this.entranceWorld = cellToWorld(ENTRANCE[0], ENTRANCE[1]);
+
+    // Queue: one slot per team, centered on the doorway, spaced a full cell-pitch apart so
+    // nobody ever overlaps — each is a real (if virtual, off-grid) "cell" in the same sense
+    // cellToWorld already treats every (r,c) pair. The seeker waits one row further back.
+    const queueCells = teams.map((_, i) => ({ r: DOOR_ROW, c: i - (teams.length - 1) / 2 }));
+    const seekerCell = { r: SEEKER_ROW, c: 0 };
+
+    buildMazeGroup(this.scene, grid, [{ r: ENTRANCE[0], c: ENTRANCE[1], dir: N }], [...queueCells, seekerCell]);
 
     this.plan = buildHideSeekPlan({
       teamIds: teams.map((t) => t.id),
@@ -169,22 +183,13 @@ export class HideSeekScene {
       reducedMotion,
     });
 
-    this.entranceWorld = cellToWorld(ENTRANCE[0], ENTRANCE[1]);
-    this.stagingCenter = { x: this.entranceWorld.x + OUTWARD.x * 90, z: this.entranceWorld.z + OUTWARD.z * 90 };
-    this.seekerRestPos = {
-      x: this.stagingCenter.x + OUTWARD.x * SEEKER_OFFSET,
-      z: this.stagingCenter.z + OUTWARD.z * SEEKER_OFFSET,
-    };
+    this.seekerRestPos = cellToWorld(seekerCell.r, seekerCell.c);
 
-    // Team characters: jittered around the entrance so a whole roster doesn't fully overlap —
-    // deterministic (index-based, not seeded RNG) since it's purely cosmetic layout, not part
-    // of the scripted plan. Each team gets one of the 7 non-seeker Kenney models, cycling by
-    // index — the 8th model is reserved exclusively for the seeker (see glbCharacters.ts).
-    const jitterScale = Math.max(1, Math.sqrt(teams.length / 6));
+    // Each team gets one of the 7 non-seeker Kenney models, cycling by index — the 8th model
+    // is reserved exclusively for the seeker (see glbCharacters.ts).
     teams.forEach((team, i) => {
-      const angle = (i / Math.max(1, teams.length)) * Math.PI * 2 + Math.PI / 6;
-      const radius = TEAM_JITTER_RADIUS * jitterScale * (0.7 + 0.5 * ((i % 3) / 2));
-      this.teamJitter.set(team.id, { x: Math.cos(angle) * radius, z: Math.sin(angle) * radius });
+      const stagingPos = cellToWorld(queueCells[i].r, queueCells[i].c);
+      this.teamStagingPos.set(team.id, stagingPos);
 
       const modelFile = TEAM_MODEL_FILES[i % TEAM_MODEL_FILES.length];
       const rig = makeGlbTeamCharacter(cache, team, modelFile);
@@ -200,7 +205,7 @@ export class HideSeekScene {
     this.scene.add(this.seekerRig.root);
     this.followTarget.set(this.seekerRestPos.x, 0, this.seekerRestPos.z);
 
-    this.setupCameraFraming(width, height, grid, teams.length);
+    this.setupCameraFraming(width, height, grid);
     placeIsoCamera(this.camera, this.wideTarget);
     applyFrustum(this.camera, this.wideFrustum);
 
@@ -208,7 +213,7 @@ export class HideSeekScene {
     this.rafId = requestAnimationFrame(this.tick);
   }
 
-  private setupCameraFraming(width: number, height: number, grid: Grid, teamCount: number): void {
+  private setupCameraFraming(width: number, height: number, grid: Grid): void {
     const aspect = width / Math.max(1, height);
     const bounds = mazeWorldBounds(grid);
     const mazeCenter = { x: (bounds.minX + bounds.maxX) / 2, z: (bounds.minZ + bounds.maxZ) / 2 };
@@ -222,18 +227,13 @@ export class HideSeekScene {
     this.mazeWideTarget.set(mazeCenter.x, 0, mazeCenter.z);
     this.mazeWideFrustum = fitFrustumToPoints(mazeCorners, mazeCenter, aspect, 60);
 
-    // Matches the jitter spread in mount() (TEAM_JITTER_RADIUS * sqrt(teamCount/6) * up to
-    // 1.2), plus headroom for the widest name chip, so the tight intro framing never clips a
-    // roster larger than the 6-team baseline it was tuned against.
-    const stagingHalfWidth = 140 * Math.max(1, Math.sqrt(teamCount / 6));
-    const stagingPoints = [
-      { x: this.stagingCenter.x - stagingHalfWidth, z: this.stagingCenter.z },
-      { x: this.stagingCenter.x + stagingHalfWidth, z: this.stagingCenter.z },
-      { x: this.seekerRestPos.x, z: this.seekerRestPos.z },
-      { x: this.entranceWorld.x, z: this.entranceWorld.z },
-    ];
-    this.tightTarget.set(this.stagingCenter.x, 0, this.stagingCenter.z);
-    this.tightFrustum = fitFrustumToPoints(stagingPoints, this.stagingCenter, aspect, 50);
+    const queuePoints = Array.from(this.teamStagingPos.values());
+    const stagingPoints = [...queuePoints, this.seekerRestPos, this.entranceWorld];
+    const stagingCenterX = (Math.min(...stagingPoints.map((p) => p.x)) + Math.max(...stagingPoints.map((p) => p.x))) / 2;
+    const stagingCenterZ = (Math.min(...stagingPoints.map((p) => p.z)) + Math.max(...stagingPoints.map((p) => p.z))) / 2;
+    const stagingCenter = { x: stagingCenterX, z: stagingCenterZ };
+    this.tightTarget.set(stagingCenterX, 0, stagingCenterZ);
+    this.tightFrustum = fitFrustumToPoints(stagingPoints, stagingCenter, aspect, 60);
 
     const wideCorners = [...mazeCorners, ...stagingPoints];
     const wideCenterX = (Math.min(...wideCorners.map((p) => p.x)) + Math.max(...wideCorners.map((p) => p.x))) / 2;
@@ -305,12 +305,39 @@ export class HideSeekScene {
     const revealStart = this.plan.phaseTimes.chaseEnd;
     for (const [teamId, rig] of this.teamRigs) {
       const keyframes = this.teamKeyframes.get(teamId)!;
-      const jitter = this.teamJitter.get(teamId)!;
-      const pos = interpolatePath(keyframes, t);
-      rig.root.position.set(pos.x + jitter.x, 0, pos.z + jitter.z);
-      if (t > keyframes[0].arriveSec) rig.root.rotation.y = pos.facing;
-      updateCharacterAnim(rig, pos.moving, dt, this.teamAnim.get(teamId)!);
-      if (crossedAKeyframe(keyframes, prev, t)) this.init.sound.playFootstep(1.15);
+      const stagingPos = this.teamStagingPos.get(teamId)!;
+      const departSec = keyframes[0].arriveSec;
+      const entryStart = departSec - TEAM_ENTRY_DURATION;
+
+      let x: number;
+      let z: number;
+      let facing: number;
+      let moving: boolean;
+
+      if (t <= entryStart) {
+        x = stagingPos.x;
+        z = stagingPos.z;
+        facing = facingToward(stagingPos, this.entranceWorld);
+        moving = false;
+      } else if (t <= departSec) {
+        const segT = Math.min(1, Math.max(0, (t - entryStart) / Math.max(1e-6, departSec - entryStart)));
+        x = stagingPos.x + (this.entranceWorld.x - stagingPos.x) * segT;
+        z = stagingPos.z + (this.entranceWorld.z - stagingPos.z) * segT;
+        facing = facingToward(stagingPos, this.entranceWorld);
+        moving = true;
+        if (prev <= entryStart && t > entryStart) this.init.sound.playFootstep(1.15);
+      } else {
+        const pos = interpolatePath(keyframes, t);
+        x = pos.x;
+        z = pos.z;
+        facing = pos.facing;
+        moving = pos.moving;
+        if (crossedAKeyframe(keyframes, prev, t)) this.init.sound.playFootstep(1.15);
+      }
+
+      rig.root.position.set(x, 0, z);
+      if (t > entryStart) rig.root.rotation.y = facing;
+      updateCharacterAnim(rig, moving, dt, this.teamAnim.get(teamId)!);
     }
 
     const targetChip = this.teamRigs.get(this.plan.targetTeamId)?.chip;
@@ -331,12 +358,13 @@ export class HideSeekScene {
     if (t <= pt.scatterEnd) {
       x = this.seekerRestPos.x;
       z = this.seekerRestPos.z;
+      facing = facingToward(this.seekerRestPos, this.entranceWorld);
       moving = false;
     } else if (t <= pt.approachEnd) {
       const segT = Math.min(1, (t - pt.scatterEnd) / Math.max(1e-6, pt.approachEnd - pt.scatterEnd));
       x = this.seekerRestPos.x + (this.entranceWorld.x - this.seekerRestPos.x) * segT;
       z = this.seekerRestPos.z + (this.entranceWorld.z - this.seekerRestPos.z) * segT;
-      facing = Math.atan2(this.entranceWorld.x - this.seekerRestPos.x, this.entranceWorld.z - this.seekerRestPos.z);
+      facing = facingToward(this.seekerRestPos, this.entranceWorld);
       moving = true;
       if (prev < pt.approachEnd && t >= pt.approachEnd) this.init.sound.playFootstep(0.85);
     } else {
@@ -348,29 +376,8 @@ export class HideSeekScene {
       moving = pos.moving;
       if (crossedAKeyframe(chaseKeyframes, prev, t)) this.init.sound.playFootstep(0.85);
 
-      // The target team's own rendered position is nudged off the bare cell center by a
-      // jitter offset (see updateTeams/mount) — without this, the seeker would walk to the
-      // cell's geometric center and visibly slide past the actual figure instead of stopping
-      // right at it. Blend that same offset in only across the final approach segment, growing
-      // 0→1 as the seeker arrives, so the two positions coincide exactly at chaseEnd — the
-      // "found" moment becomes a real collision instead of a timed coincidence.
-      const n = chaseKeyframes.length;
-      if (n >= 2) {
-        const finalPrev = chaseKeyframes[n - 2];
-        const finalCur = chaseKeyframes[n - 1];
-        const finalSegT =
-          t <= finalPrev.arriveSec
-            ? 0
-            : Math.min(1, (t - finalPrev.arriveSec) / Math.max(1e-6, finalCur.arriveSec - finalPrev.arriveSec));
-        if (finalSegT > 0) {
-          const targetJitter = this.teamJitter.get(this.plan.targetTeamId) ?? { x: 0, z: 0 };
-          x += targetJitter.x * finalSegT;
-          z += targetJitter.z * finalSegT;
-        }
-      }
-
       // Cosmetic "looking around" wobble during a fakeout-flagged segment — purely a rotation
-      // overlay, never changes the actual path/timing (the chase always ends at targetTeamId).
+      // overlay, never changes the actual path/timing.
       const seg = this.currentChaseSegment(t);
       if (seg?.fakeoutPause) facing += Math.sin(t * 9) * FAKEOUT_WOBBLE_RAD;
     }

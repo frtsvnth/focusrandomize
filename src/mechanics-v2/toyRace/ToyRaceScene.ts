@@ -113,7 +113,8 @@ export default class ToyRaceScene extends Phaser.Scene {
       this.path,
       this.raceData.width,
       this.raceData.height,
-      this.decorations
+      this.decorations,
+      0.07
     );
     this.durationSec = 10 + this.rng() * 5;
 

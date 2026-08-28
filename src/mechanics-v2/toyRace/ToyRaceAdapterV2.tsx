@@ -18,10 +18,10 @@ export default function ToyRaceAdapterV2({
   const [phase, setPhase] = useState<Phase>('countdown');
   const [countdown, setCountdown] = useState(3);
 
-  const width = Math.min(1500, typeof window !== 'undefined' ? window.innerWidth * 0.92 : 1100);
+  const width = Math.min(1700, typeof window !== 'undefined' ? window.innerWidth * 0.96 : 1200);
   const height = Math.min(
-    760,
-    Math.max(420, typeof window !== 'undefined' ? window.innerHeight * 0.62 : 560)
+    880,
+    Math.max(460, typeof window !== 'undefined' ? window.innerHeight * 0.7 : 620)
   );
 
   useEffect(() => {

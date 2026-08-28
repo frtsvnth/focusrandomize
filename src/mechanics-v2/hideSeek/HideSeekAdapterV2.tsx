@@ -6,6 +6,15 @@ import { HideSeekScene, type HideSeekCaption } from './HideSeekScene';
 const DESIGN_WIDTH = 1500;
 const DESIGN_HEIGHT = 820;
 
+// The title card ("Стас идет искать") holds at full opacity this much longer than the scene's
+// own approach-phase timing before it starts fading, then fades out over this long — both
+// handled entirely here (not in HideSeekScene/choreography.ts), so the seeker's actual
+// walk/camera/chase schedule is untouched; only how long the *caption* visually lingers changes.
+const TITLE_HOLD_EXTRA_MS = 1000;
+const TITLE_FADE_MS = 1000;
+const TITLE_HOLD_EXTRA_MS_REDUCED = 300;
+const TITLE_FADE_MS_REDUCED = 300;
+
 export default function HideSeekAdapterV2({
   teams,
   targetTeam,
@@ -17,6 +26,9 @@ export default function HideSeekAdapterV2({
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<HideSeekScene | null>(null);
   const [caption, setCaption] = useState<HideSeekCaption>(null);
+  const [titleFading, setTitleFading] = useState(false);
+  const captionRef = useRef<HideSeekCaption>(null);
+  const titleTimeoutRef = useRef<number | null>(null);
 
   // Unlike the other V2 mechanics (which size their "design resolution" off the viewport, e.g.
   // TractorAdapterV2's `Math.min(1500, innerWidth*0.92)`), the maze's actual field is FIXED —
@@ -30,6 +42,15 @@ export default function HideSeekAdapterV2({
     if (!containerRef.current) return;
     let cancelled = false;
     setCaption(null);
+    setTitleFading(false);
+    captionRef.current = null;
+
+    const clearTitleTimer = () => {
+      if (titleTimeoutRef.current !== null) {
+        window.clearTimeout(titleTimeoutRef.current);
+        titleTimeoutRef.current = null;
+      }
+    };
 
     const scene = new HideSeekScene({
       teams,
@@ -40,7 +61,30 @@ export default function HideSeekAdapterV2({
       sound,
       reducedMotion,
       onCaption: (next) => {
-        if (!cancelled) setCaption(next);
+        if (cancelled) return;
+        clearTitleTimer();
+        setTitleFading(false);
+
+        if (next === null && captionRef.current?.variant === 'title') {
+          // The scene is done with the title on its own schedule — instead of cutting it
+          // immediately, keep it lit a beat longer, then fade it out smoothly, rather than an
+          // abrupt cut right as the seeker's approach/chase logic moves on underneath it.
+          const holdMs = reducedMotion ? TITLE_HOLD_EXTRA_MS_REDUCED : TITLE_HOLD_EXTRA_MS;
+          const fadeMs = reducedMotion ? TITLE_FADE_MS_REDUCED : TITLE_FADE_MS;
+          titleTimeoutRef.current = window.setTimeout(() => {
+            setTitleFading(true);
+            titleTimeoutRef.current = window.setTimeout(() => {
+              captionRef.current = null;
+              setCaption(null);
+              setTitleFading(false);
+              titleTimeoutRef.current = null;
+            }, fadeMs);
+          }, holdMs);
+          return;
+        }
+
+        captionRef.current = next;
+        setCaption(next);
       },
       // The scene guarantees this always fires with exactly the targetTeam it was given (the
       // seeker's chase path is scripted straight to that team's scatter cell) — guarded by
@@ -58,6 +102,7 @@ export default function HideSeekAdapterV2({
 
     return () => {
       cancelled = true;
+      clearTitleTimer();
       sceneRef.current?.destroy();
       sceneRef.current = null;
     };
@@ -69,13 +114,17 @@ export default function HideSeekAdapterV2({
       style={{
         position: 'relative',
         // Width picks the tightest of "92% of viewport width", "the width that would make the
-        // height hit ~62% of viewport height at this exact aspect ratio", and the 1500px cap —
+        // height hit ~84% of viewport height at this exact aspect ratio", and the 1500px cap —
         // then `aspectRatio` derives height from that, so the box is never independently
         // stretched (the old `width: min(1500px,92vw); height: clamp(420px,62vh,760px)` sized
         // each axis from a *different* viewport dimension, so its actual on-screen ratio only
         // matched the fixed 1500x820 render resolution by coincidence — everything, badges
-        // included, ended up visibly stretched horizontally whenever it didn't).
-        width: 'min(92vw, calc(62vh * 1500 / 820), 1500px)',
+        // included, ended up visibly stretched horizontally whenever it didn't). The height
+        // budget is generous (84vh, not Tractor's 62vh) because coupling the axes via
+        // aspect-ratio means it now also caps *width* — PresenterModeV2 gives the active ride
+        // the full viewport (a fixed inset:0 overlay), so there's no header/footer eating into
+        // that space to budget around.
+        width: 'min(92vw, calc(84vh * 1500 / 820), 1500px)',
         aspectRatio: `${DESIGN_WIDTH} / ${DESIGN_HEIGHT}`,
         borderRadius: 24,
         overflow: 'hidden',
@@ -88,7 +137,6 @@ export default function HideSeekAdapterV2({
 
       {caption?.variant === 'title' && (
         <div
-          className="reveal-anim"
           style={{
             position: 'absolute',
             inset: 0,
@@ -99,20 +147,22 @@ export default function HideSeekAdapterV2({
             padding: '6%',
             pointerEvents: 'none',
             background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.55) 0%, transparent 68%)',
+            opacity: titleFading ? 0 : 1,
+            transition: `opacity ${reducedMotion ? TITLE_FADE_MS_REDUCED : TITLE_FADE_MS}ms ease`,
           }}
         >
           <div
             style={{
-              fontFamily: 'Georgia, "Times New Roman", serif',
+              fontFamily: '"Arial Black", "Helvetica Neue", Inter, system-ui, sans-serif',
               fontWeight: 900,
               textTransform: 'uppercase',
-              letterSpacing: '0.07em',
+              letterSpacing: '0.06em',
               fontSize: 'clamp(26px, 5.5vw, 68px)',
               lineHeight: 1.15,
               textAlign: 'center',
               color: '#e2231a',
               textShadow:
-                '0 0 14px rgba(226,35,26,0.95), 0 0 36px rgba(226,35,26,0.65), 0 0 72px rgba(226,35,26,0.4), 0 4px 18px rgba(0,0,0,0.85)',
+                '0 0 14px rgba(0,0,0,0.95), 0 0 34px rgba(0,0,0,0.85), 0 0 68px rgba(0,0,0,0.7), 0 4px 18px rgba(0,0,0,0.9)',
             }}
           >
             {caption.text}

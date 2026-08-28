@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import type { Team } from '../../domain/types';
 import type { SoundV2Api } from '../adapter';
+import { easeInCubic, easeOutCubic } from '../engine/canvasUtils';
 import { computeMazeSize } from './logic/mazeSize';
 import { generateMaze, N, type Grid } from './logic/maze';
 import { buildHideSeekPlan, type HideSeekPlan, type ChaseStep } from './logic/choreography';
@@ -25,6 +26,8 @@ import { disposeObject3D } from './sceneBuild/dispose';
 import { updateCharacterAnim, type CharacterRig, type AnimState } from './people/character';
 import { loadCharacterAssets, makeGlbTeamCharacter, makeGlbSeekerCharacter, TEAM_MODEL_FILES } from './people/glbCharacters';
 
+export type HideSeekCaption = { text: string; variant: 'title' | 'found' } | null;
+
 export interface HideSeekInitData {
   teams: Team[];
   targetTeam: Team;
@@ -33,7 +36,7 @@ export interface HideSeekInitData {
   height: number;
   sound: SoundV2Api;
   reducedMotion: boolean;
-  onCaption: (text: string | null) => void;
+  onCaption: (caption: HideSeekCaption) => void;
   onFinish: (winner: Team) => void;
 }
 
@@ -50,6 +53,17 @@ const CHASE_RADIUS = 345;
 const FANFARE_DELAY_SEC = 0.2;
 const FOUND_PULSE_DURATION = 0.3;
 const FAKEOUT_WOBBLE_RAD = 0.35;
+
+// Suspense color grading: from the moment "Стас идёт искать" appears (end of scatter) through
+// the whole chase, the canvas eases toward a desaturated, dimmed, higher-contrast look (a
+// CSS filter on the canvas itself — far simpler and cheaper than a Three.js postprocessing
+// pass for this) plus a growing vignette. On "found" it snaps back to normal quickly, well
+// before `revealEnd` hands off to the app's own winner screen.
+const DARK_SATURATE_MIN = 30;
+const DARK_BRIGHTNESS_MIN = 68;
+const DARK_CONTRAST_MAX = 118;
+const VIGNETTE_MAX_OPACITY = 0.6;
+const REVERT_FRACTION = 0.5;
 
 interface Keyframe {
   cell: [number, number];
@@ -115,6 +129,7 @@ function buildLights(): THREE.Group {
 export class HideSeekScene {
   private init: HideSeekInitData;
   private renderer: THREE.WebGLRenderer | null = null;
+  private vignetteEl: HTMLDivElement | null = null;
   private scene = new THREE.Scene();
   private camera = createIsoCamera();
   private rafId: number | null = null;
@@ -167,6 +182,17 @@ export class HideSeekScene {
     this.renderer.domElement.style.height = '100%';
     this.renderer.domElement.style.display = 'block';
     container.appendChild(this.renderer.domElement);
+
+    // Suspense vignette overlay — a plain absolutely-positioned div, opacity driven every
+    // frame alongside the canvas's own CSS filter (see applyColorGrading). Owned and cleaned
+    // up by this scene, same lifecycle as the renderer's own canvas.
+    this.vignetteEl = document.createElement('div');
+    this.vignetteEl.style.position = 'absolute';
+    this.vignetteEl.style.inset = '0';
+    this.vignetteEl.style.pointerEvents = 'none';
+    this.vignetteEl.style.background = 'radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,0.92) 100%)';
+    this.vignetteEl.style.opacity = '0';
+    container.appendChild(this.vignetteEl);
 
     this.scene.add(buildLights());
 
@@ -287,7 +313,7 @@ export class HideSeekScene {
       sound.playWhoosh(pt.introZoomEnd - pt.introBeatEnd);
     }
     if (prev < pt.scatterEnd && t >= pt.scatterEnd) {
-      onCaption('Стас идет искать');
+      onCaption({ text: 'Стас идет искать', variant: 'title' });
     }
     if (prev < pt.approachEnd && t >= pt.approachEnd) {
       onCaption(null);
@@ -295,7 +321,7 @@ export class HideSeekScene {
     }
     if (prev < pt.chaseEnd && t >= pt.chaseEnd) {
       sound.stopChaseTension();
-      onCaption('Нашёл!');
+      onCaption({ text: 'Нашёл!', variant: 'found' });
       sound.playClunk();
       this.fanfareAt = t + FANFARE_DELAY_SEC;
       const chip = this.teamRigs.get(this.plan.targetTeamId)?.chip;
@@ -309,9 +335,46 @@ export class HideSeekScene {
     this.updateTeams(prev, t, dt);
     this.updateSeeker(prev, t, dt);
     this.updateCamera(t, dt);
+    this.applyColorGrading(t);
 
     if (prev < pt.revealEnd && t >= pt.revealEnd) {
       this.finish();
+    }
+  }
+
+  /** 0 = normal color, 1 = fully desaturated/dimmed/vignetted. Eases in (slow start,
+   *  accelerating) across the whole approach+chase, then eases back out over just the first
+   *  half of the reveal phase — "quick" relative to the slow build, and done well before
+   *  `revealEnd` hands off to the app's own winner screen. */
+  private darknessProgress(t: number): number {
+    const pt = this.plan.phaseTimes;
+    if (t < pt.scatterEnd) return 0;
+    if (t < pt.chaseEnd) {
+      const raw = (t - pt.scatterEnd) / Math.max(1e-6, pt.chaseEnd - pt.scatterEnd);
+      return easeInCubic(Math.min(1, Math.max(0, raw)));
+    }
+    if (t < pt.revealEnd) {
+      const revertDur = Math.max(1e-6, pt.revealEnd - pt.chaseEnd) * REVERT_FRACTION;
+      const raw = (t - pt.chaseEnd) / revertDur;
+      return 1 - easeOutCubic(Math.min(1, Math.max(0, raw)));
+    }
+    return 0;
+  }
+
+  private applyColorGrading(t: number): void {
+    const darkness = this.darknessProgress(t);
+    if (this.renderer) {
+      if (darkness > 0.001) {
+        const saturate = 100 - darkness * (100 - DARK_SATURATE_MIN);
+        const brightness = 100 - darkness * (100 - DARK_BRIGHTNESS_MIN);
+        const contrast = 100 + darkness * (DARK_CONTRAST_MAX - 100);
+        this.renderer.domElement.style.filter = `saturate(${saturate}%) brightness(${brightness}%) contrast(${contrast}%)`;
+      } else {
+        this.renderer.domElement.style.filter = 'none';
+      }
+    }
+    if (this.vignetteEl) {
+      this.vignetteEl.style.opacity = String(darkness * VIGNETTE_MAX_OPACITY);
     }
   }
 
@@ -498,6 +561,10 @@ export class HideSeekScene {
       this.renderer.forceContextLoss();
       this.renderer.domElement.remove();
       this.renderer = null;
+    }
+    if (this.vignetteEl) {
+      this.vignetteEl.remove();
+      this.vignetteEl = null;
     }
   }
 }

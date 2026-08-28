@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { MechanicAdapterV2Props } from '../adapter';
-import { HideSeekScene } from './HideSeekScene';
+import { HideSeekScene, type HideSeekCaption } from './HideSeekScene';
 
 /** Fixed landscape simulation resolution — see the comment on `width`/`height` below. */
 const DESIGN_WIDTH = 1500;
@@ -16,7 +16,7 @@ export default function HideSeekAdapterV2({
 }: MechanicAdapterV2Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<HideSeekScene | null>(null);
-  const [caption, setCaption] = useState<string | null>(null);
+  const [caption, setCaption] = useState<HideSeekCaption>(null);
 
   // Unlike the other V2 mechanics (which size their "design resolution" off the viewport, e.g.
   // TractorAdapterV2's `Math.min(1500, innerWidth*0.92)`), the maze's actual field is FIXED —
@@ -39,8 +39,8 @@ export default function HideSeekAdapterV2({
       height,
       sound,
       reducedMotion,
-      onCaption: (text) => {
-        if (!cancelled) setCaption(text);
+      onCaption: (next) => {
+        if (!cancelled) setCaption(next);
       },
       // The scene guarantees this always fires with exactly the targetTeam it was given (the
       // seeker's chase path is scripted straight to that team's scatter cell) — guarded by
@@ -68,11 +68,15 @@ export default function HideSeekAdapterV2({
     <div
       style={{
         position: 'relative',
-        // Landscape, same footprint as TractorAdapterV2 — uses the screen's own width rather
-        // than being boxed into a square capped by viewport height. Purely a display size; the
-        // simulated field itself stays fixed (see `width`/`height` above).
-        width: 'min(1500px, 92vw)',
-        height: 'clamp(420px, 62vh, 760px)',
+        // Width picks the tightest of "92% of viewport width", "the width that would make the
+        // height hit ~62% of viewport height at this exact aspect ratio", and the 1500px cap —
+        // then `aspectRatio` derives height from that, so the box is never independently
+        // stretched (the old `width: min(1500px,92vw); height: clamp(420px,62vh,760px)` sized
+        // each axis from a *different* viewport dimension, so its actual on-screen ratio only
+        // matched the fixed 1500x820 render resolution by coincidence — everything, badges
+        // included, ended up visibly stretched horizontally whenever it didn't).
+        width: 'min(92vw, calc(62vh * 1500 / 820), 1500px)',
+        aspectRatio: `${DESIGN_WIDTH} / ${DESIGN_HEIGHT}`,
         borderRadius: 24,
         overflow: 'hidden',
         border: '4px solid var(--surface-2)',
@@ -82,7 +86,41 @@ export default function HideSeekAdapterV2({
     >
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
 
-      {caption && (
+      {caption?.variant === 'title' && (
+        <div
+          className="reveal-anim"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 2,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '6%',
+            pointerEvents: 'none',
+            background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.55) 0%, transparent 68%)',
+          }}
+        >
+          <div
+            style={{
+              fontFamily: 'Georgia, "Times New Roman", serif',
+              fontWeight: 900,
+              textTransform: 'uppercase',
+              letterSpacing: '0.07em',
+              fontSize: 'clamp(26px, 5.5vw, 68px)',
+              lineHeight: 1.15,
+              textAlign: 'center',
+              color: '#e2231a',
+              textShadow:
+                '0 0 14px rgba(226,35,26,0.95), 0 0 36px rgba(226,35,26,0.65), 0 0 72px rgba(226,35,26,0.4), 0 4px 18px rgba(0,0,0,0.85)',
+            }}
+          >
+            {caption.text}
+          </div>
+        </div>
+      )}
+
+      {caption?.variant === 'found' && (
         <div
           className="reveal-anim"
           style={{
@@ -103,7 +141,7 @@ export default function HideSeekAdapterV2({
             textShadow: '0 2px 8px rgba(0,0,0,0.6)',
           }}
         >
-          {caption}
+          {caption.text}
         </div>
       )}
     </div>

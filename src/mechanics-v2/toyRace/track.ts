@@ -7,29 +7,48 @@ import { makeRng } from '../engine/canvasUtils';
  * projection is purely a rendering concern, applied on top via `isoProject`.
  *
  * The track is a closed loop (start and finish are the same point) so it reads as a real
- * circuit rather than a one-way lane, generated as a radially-perturbed ellipse — long,
- * rounded, with a few turns, and guaranteed not to self-intersect (radius stays positive
- * for every angle).
+ * circuit rather than a one-way lane, generated per race as a radially-perturbed ellipse —
+ * long, rounded, with a few turns, and guaranteed not to self-intersect (the radius stays
+ * positive for every angle: it's a sum of a base ellipse plus two bounded sine wobbles, and
+ * the wobble amplitudes are capped well below 1 so they can never cancel the base radius
+ * out). Driven by the same seeded `rng` as the rest of the race so a given pick's animation
+ * stays reproducible, same as everything else in this app's "controlled randomness" model.
  */
-function generateLoopPoints(): Array<[number, number]> {
-  const segments = 18;
-  const rx = 8.8;
-  const ry = 5.3;
+function generateLoopPoints(rng: () => number): Array<[number, number]> {
+  const segments = 20;
+
+  const rx = 7.5 + rng() * 4; // 7.5 - 11.5
+  const aspect = 1.4 + rng() * 0.8; // 1.4 - 2.2
+  const ry = rx / aspect;
+
+  const freq1 = 2 + Math.floor(rng() * 3); // 2 - 4
+  const freq2 = 4 + Math.floor(rng() * 3); // 4 - 6
+  const phase1 = rng() * Math.PI * 2;
+  const phase2 = rng() * Math.PI * 2;
+
+  let amp1 = 0.16 + rng() * 0.14; // 0.16 - 0.30
+  let amp2 = 0.06 + rng() * 0.1; // 0.06 - 0.16
+  const ampCap = 0.42; // keeps radius safely positive and curvature gentle for the spline
+  if (amp1 + amp2 > ampCap) {
+    const scale = ampCap / (amp1 + amp2);
+    amp1 *= scale;
+    amp2 *= scale;
+  }
+
   const points: Array<[number, number]> = [];
   for (let i = 0; i <= segments; i++) {
     const theta = (i / segments) * Math.PI * 2;
-    const wobble = 1 + 0.24 * Math.sin(3 * theta + 0.5) + 0.1 * Math.sin(5 * theta - 1.1);
+    const wobble =
+      1 + amp1 * Math.sin(freq1 * theta + phase1) + amp2 * Math.sin(freq2 * theta + phase2);
     points.push([rx * wobble * Math.cos(theta), ry * wobble * Math.sin(theta)]);
   }
   return points;
 }
 
-export const TRACK_WORLD_POINTS: Array<[number, number]> = generateLoopPoints();
-
 export const TRACK_HALF_WIDTH = 1.7;
 
-export function buildTrackPath(): Phaser.Curves.Path {
-  const points = TRACK_WORLD_POINTS.map(([x, y]) => new Phaser.Math.Vector2(x, y));
+export function buildTrackPath(rng: () => number): Phaser.Curves.Path {
+  const points = generateLoopPoints(rng).map(([x, y]) => new Phaser.Math.Vector2(x, y));
   const path = new Phaser.Curves.Path();
   path.add(new Phaser.Curves.Spline(points));
   return path;

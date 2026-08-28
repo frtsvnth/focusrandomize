@@ -557,15 +557,24 @@ export function createTractorScene(PhaserNS: typeof Phaser): typeof Phaser.Scene
       // continuous engine/wind loops live as long-lived AudioNodes owned by the hook itself,
       // so they need an explicit stop when this scene goes away or they'd play on forever.
       // The fast-forward request comes in from TractorAdapterV2 via the game-level event bus
-      // (it holds the Phaser.Game, not this Scene instance) — also torn down on shutdown.
+      // (it holds the Phaser.Game, not this Scene instance) — also torn down here.
+      //
+      // TractorAdapterV2's unmount cleanup calls `game.destroy(true)` — a *whole-game* teardown,
+      // which fires each scene's 'destroy' event, not 'shutdown' ('shutdown' is for a scene
+      // being stopped/restarted while the game keeps running, e.g. `scene.stop()`, which this
+      // codebase never calls). Listening only for 'shutdown' meant this cleanup silently never
+      // ran on the actual unmount path — the engine/wind drone kept humming until a full page
+      // reload tore down the AudioContext itself. Bound to both so either teardown path works.
       this.game.events.on('tractor-fast-forward', this.fastForwardListener);
       this.game.events.on('tractor-theme-change', this.themeChangeListener);
-      this.events.once('shutdown', () => {
+      const stopSoundAndListeners = () => {
         this.tractorData.sound.stopEngine();
         this.tractorData.sound.stopWind();
         this.game.events.off('tractor-fast-forward', this.fastForwardListener);
         this.game.events.off('tractor-theme-change', this.themeChangeListener);
-      });
+      };
+      this.events.once('shutdown', stopSoundAndListeners);
+      this.events.once('destroy', stopSoundAndListeners);
 
       // The choreography comes first: who ejects where/how, and where the finale is. The
       // terrain's mega-humps are then placed at exactly those bumpX's (see logic/road.ts).
@@ -844,8 +853,12 @@ export function createTractorScene(PhaserNS: typeof Phaser): typeof Phaser.Scene
     }
 
     /** Looped engine drone, pitch/volume tracking current speed — starts on the first call,
-     * fades and stops via sound.stopEngine() on scene shutdown. */
+     * fades and stops via sound.stopEngine() once the ride hands off to the reveal (or on
+     * unmount). Guarded on `onFinishCalled` since setEngineIntensity auto-starts the engine on
+     * any call — without this, the very next frame after updateFinaleCallback's stopEngine()
+     * would immediately restart it at idle (speed is 0 by then, but 0 is still a valid call). */
     private updateEngineSound(speed: number) {
+      if (this.onFinishCalled) return;
       const fraction = clamp(speed / SPEED_LINES_MAX_SPEED, 0, 1);
       this.tractorData.sound.setEngineIntensity(fraction);
     }
@@ -853,6 +866,7 @@ export function createTractorScene(PhaserNS: typeof Phaser): typeof Phaser.Scene
     /** Regular road bumps, detected off the same suspension-velocity signal the visual
      * micro-shake/hay triggers already use, throttled so a rough stretch doesn't spam. */
     private updateBumpSound(rawDt: number) {
+      if (this.onFinishCalled) return;
       this.bumpSoundCooldown = Math.max(0, this.bumpSoundCooldown - rawDt);
       const velocity = Math.abs(this.tractorYSpring.velocity);
       if (velocity <= BUMP_SOUND_VELOCITY_THRESHOLD || this.bumpSoundCooldown > 0) return;
@@ -976,6 +990,12 @@ export function createTractorScene(PhaserNS: typeof Phaser): typeof Phaser.Scene
       const grace = this.tractorData.reducedMotion ? FINALE_GRACE_SEC_REDUCED : FINALE_GRACE_SEC;
       if (this.realElapsedSec - this.closeCallAt < grace) return;
       this.onFinishCalled = true;
+      // Control passes to the app's own reveal overlay here, which can sit on screen for as
+      // long as the presenter likes before they dismiss it (this scene stays mounted, just
+      // covered) — the engine/wind loops are still-updatable AudioNodes owned by the sound
+      // hook, not this scene, so they'd otherwise keep humming under the reveal indefinitely.
+      this.tractorData.sound.stopEngine();
+      this.tractorData.sound.stopWind();
       this.tractorData.onFinish(this.tractorData.targetTeam);
     }
 

@@ -104,7 +104,10 @@ export default class ToyRaceScene extends Phaser.Scene {
   }
 
   create() {
-    this.path = buildTrackPath();
+    // Track shape is drawn from the race's own seeded rng first, so the whole per-race
+    // sequence (shape, then duration, then car speeds/lanes below) stays reproducible from
+    // a single seed — same "controlled randomness" model as the rest of the app.
+    this.path = buildTrackPath(this.rng);
     this.decorations = buildDecorations(this.path);
     this.projection = fitProjection(
       this.path,

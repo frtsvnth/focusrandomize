@@ -73,12 +73,13 @@ describe('buildHideSeekPlan', () => {
     }
   });
 
-  it('total chase time always equals the derived chase duration, regardless of fakeout count', () => {
+  it('the seeker\'s last step lands shortly before chaseEnd, reserving a turn-to-face beat', () => {
     for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
       const plan = buildHideSeekPlan(baseInput({ seed }));
-      const chaseDurationSec = plan.phaseTimes.chaseEnd - plan.phaseTimes.approachEnd;
       const last = plan.chasePath[plan.chasePath.length - 1];
-      expect(last.arriveSec - plan.phaseTimes.approachEnd).toBeCloseTo(chaseDurationSec, 9);
+      const turnGap = plan.phaseTimes.chaseEnd - last.arriveSec;
+      expect(turnGap).toBeGreaterThan(0);
+      expect(turnGap).toBeLessThanOrEqual(0.35 + 1e-9);
     }
   });
 

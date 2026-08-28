@@ -73,23 +73,13 @@ export interface WallOpening {
   dir: number;
 }
 
-export interface ExtraFloorCell {
-  r: number;
-  c: number;
-}
-
 /** Builds floor + walls as InstancedMesh (cheap for large mazes) and adds them to `scene`.
  *  `openings` skips specific wall segments even though `grid` still logically has a wall
  *  there (pathfinding/`hasWall` stay untouched) — used for the entrance doorway, a purely
- *  visual gap rather than a change to the maze's actual connectivity. `extraFloorCells` adds
- *  floor tiles outside the grid's own bounds (fractional (r,c) allowed) — the staging queue
- *  standing outside the door needs visible ground to stand on too. */
-export function buildMazeGroup(
-  scene: THREE.Scene,
-  grid: Grid,
-  openings: WallOpening[] = [],
-  extraFloorCells: ExtraFloorCell[] = []
-): THREE.Group {
+ *  visual gap rather than a change to the maze's actual connectivity. Floor is only ever
+ *  built for the grid's own cells — anything staged outside it (the queue, the seeker)
+ *  deliberately stands on bare background, not a floor patch. */
+export function buildMazeGroup(scene: THREE.Scene, grid: Grid, openings: WallOpening[] = []): THREE.Group {
   const group = new THREE.Group();
   const h = grid.length;
   const w = grid[0].length;
@@ -100,7 +90,7 @@ export function buildMazeGroup(
   const floorGeo = createFloorGeometry();
   const floorTex = makeStoneTexture('#93938f', '#68686a');
   const floorMat = new THREE.MeshBasicMaterial({ map: floorTex, side: THREE.DoubleSide });
-  const floorMesh = new THREE.InstancedMesh(floorGeo, floorMat, h * w + extraFloorCells.length);
+  const floorMesh = new THREE.InstancedMesh(floorGeo, floorMat, h * w);
   let fi = 0;
   for (let r = 0; r < h; r++) {
     for (let c = 0; c < w; c++) {
@@ -111,14 +101,6 @@ export function buildMazeGroup(
       dummy.updateMatrix();
       floorMesh.setMatrixAt(fi++, dummy.matrix);
     }
-  }
-  for (const cell of extraFloorCells) {
-    const p = cellToWorld(cell.r, cell.c);
-    dummy.position.set(p.x, 0, p.z);
-    dummy.rotation.set(0, 0, 0);
-    dummy.scale.set(1, 1, 1);
-    dummy.updateMatrix();
-    floorMesh.setMatrixAt(fi++, dummy.matrix);
   }
   floorMesh.instanceMatrix.needsUpdate = true;
   group.add(floorMesh);

@@ -92,6 +92,14 @@ function facingToward(from: { x: number; z: number }, to: { x: number; z: number
   return Math.atan2(to.x - from.x, to.z - from.z);
 }
 
+/** Shortest-path angle interpolation (handles the ±π wraparound) — used to turn the seeker
+ *  smoothly from whichever way it was walking to facing the target, never the long way round. */
+function lerpAngle(a: number, b: number, t: number): number {
+  const twoPi = Math.PI * 2;
+  let diff = ((b - a + Math.PI) % twoPi + twoPi) % twoPi - Math.PI;
+  return a + diff * t;
+}
+
 function buildLights(): THREE.Group {
   const group = new THREE.Group();
   group.add(new THREE.HemisphereLight(0xffffff, 0x33303a, 1.0));
@@ -125,6 +133,7 @@ export class HideSeekScene {
   private seekerAnim: AnimState = { phase: 0, amount: 0 };
   private seekerRestPos = { x: 0, z: 0 };
   private entranceWorld = { x: 0, z: 0 };
+  private targetCellWorld = { x: 0, z: 0 };
   private targetChipBaseScale: THREE.Vector2 | null = null;
 
   private wideFrustum!: Frustum;
@@ -169,10 +178,13 @@ export class HideSeekScene {
     // Queue: one slot per team, centered on the doorway, spaced a full cell-pitch apart so
     // nobody ever overlaps — each is a real (if virtual, off-grid) "cell" in the same sense
     // cellToWorld already treats every (r,c) pair. The seeker waits one row further back.
+    // Deliberately no floor tiles out here (see buildMazeGroup) — they stand on bare black
+    // until they step through the doorway, which reads as "outside the maze" more clearly
+    // than a floor patch that just stops at an arbitrary edge would.
     const queueCells = teams.map((_, i) => ({ r: DOOR_ROW, c: i - (teams.length - 1) / 2 }));
     const seekerCell = { r: SEEKER_ROW, c: 0 };
 
-    buildMazeGroup(this.scene, grid, [{ r: ENTRANCE[0], c: ENTRANCE[1], dir: N }], [...queueCells, seekerCell]);
+    buildMazeGroup(this.scene, grid, [{ r: ENTRANCE[0], c: ENTRANCE[1], dir: N }]);
 
     this.plan = buildHideSeekPlan({
       teamIds: teams.map((t) => t.id),
@@ -184,6 +196,8 @@ export class HideSeekScene {
     });
 
     this.seekerRestPos = cellToWorld(seekerCell.r, seekerCell.c);
+    const targetScatter = this.plan.scatter.find((s) => s.teamId === targetTeam.id)!;
+    this.targetCellWorld = cellToWorld(targetScatter.targetCell[0], targetScatter.targetCell[1]);
 
     // Each team gets one of the 7 non-seeker Kenney models, cycling by index — the 8th model
     // is reserved exclusively for the seeker (see glbCharacters.ts).
@@ -369,17 +383,33 @@ export class HideSeekScene {
       if (prev < pt.approachEnd && t >= pt.approachEnd) this.init.sound.playFootstep(0.85);
     } else {
       const chaseKeyframes: Keyframe[] = this.plan.chasePath.map((s: ChaseStep) => ({ cell: s.cell, arriveSec: s.arriveSec }));
-      const pos = interpolatePath(chaseKeyframes, t);
-      x = pos.x;
-      z = pos.z;
-      facing = pos.facing;
-      moving = pos.moving;
-      if (crossedAKeyframe(chaseKeyframes, prev, t)) this.init.sound.playFootstep(0.85);
+      const lastArrive = chaseKeyframes[chaseKeyframes.length - 1].arriveSec;
 
-      // Cosmetic "looking around" wobble during a fakeout-flagged segment — purely a rotation
-      // overlay, never changes the actual path/timing.
-      const seg = this.currentChaseSegment(t);
-      if (seg?.fakeoutPause) facing += Math.sin(t * 9) * FAKEOUT_WOBBLE_RAD;
+      if (t >= lastArrive) {
+        // choreography.ts reserves a short window between the seeker's actual arrival and
+        // `chaseEnd` (see TURN_TO_FACE_SEC_NORMAL) — hold position here and turn in place to
+        // square up on the target's cell, so "found" never catches the seeker still facing
+        // whichever direction its last stride happened to come from.
+        const arrived = cellToWorld(chaseKeyframes[chaseKeyframes.length - 1].cell[0], chaseKeyframes[chaseKeyframes.length - 1].cell[1]);
+        x = arrived.x;
+        z = arrived.z;
+        const arrivalFacing = interpolatePath(chaseKeyframes, lastArrive).facing;
+        const turnT = Math.min(1, Math.max(0, (t - lastArrive) / Math.max(1e-6, pt.chaseEnd - lastArrive)));
+        facing = lerpAngle(arrivalFacing, facingToward(arrived, this.targetCellWorld), turnT);
+        moving = false;
+      } else {
+        const pos = interpolatePath(chaseKeyframes, t);
+        x = pos.x;
+        z = pos.z;
+        facing = pos.facing;
+        moving = pos.moving;
+        if (crossedAKeyframe(chaseKeyframes, prev, t)) this.init.sound.playFootstep(0.85);
+
+        // Cosmetic "looking around" wobble during a fakeout-flagged segment — purely a rotation
+        // overlay, never changes the actual path/timing.
+        const seg = this.currentChaseSegment(t);
+        if (seg?.fakeoutPause) facing += Math.sin(t * 9) * FAKEOUT_WOBBLE_RAD;
+      }
     }
 
     this.seekerRig.root.position.set(x, 0, z);

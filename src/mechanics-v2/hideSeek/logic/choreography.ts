@@ -67,6 +67,11 @@ const FAKEOUT_PAUSE_SEC_NORMAL = 0.5;
 // split below still sums to exactly `chaseDurationSec`).
 const CHASE_SLOWDOWN_STEPS = 3;
 const CHASE_SLOWDOWN_WEIGHT = 2.6;
+// Reserved off the tail of the walk budget so the seeker finishes its last *step* slightly
+// before "found" actually triggers, leaving this much time to turn in place and square up to
+// face the target's cell before the reveal — never caught mid-stride or standing side-on.
+const TURN_TO_FACE_SEC_NORMAL = 0.35;
+const TURN_TO_FACE_SEC_REDUCED = 0.12;
 
 export interface HideSeekPhaseTimes {
   introBeatEnd: number;
@@ -202,8 +207,14 @@ function buildChasePath(
     pool.splice(j, 1);
   }
 
+  // Only reserve a turn-to-face beat when there's an actual final step to finish early — the
+  // path.length===1 edge case (target directly adjacent to the entrance) has no walking at
+  // all, so there's nothing to shorten.
+  const turnDuration =
+    path.length >= 2 ? Math.min(reducedMotion ? TURN_TO_FACE_SEC_REDUCED : TURN_TO_FACE_SEC_NORMAL, chaseDurationSec * 0.3) : 0;
+
   const stepCount = Math.max(1, path.length - 1);
-  const walkBudget = chaseDurationSec - fakeoutIndices.size * fakeoutPauseSec;
+  const walkBudget = chaseDurationSec - fakeoutIndices.size * fakeoutPauseSec - turnDuration;
 
   // Weighted split instead of a uniform per-step time: the final few steps get a much bigger
   // share of the budget (i.e. take longer, feel slower) while the sum still lands on exactly
@@ -218,7 +229,10 @@ function buildChasePath(
   for (let i = 1; i < path.length; i++) {
     const prevPaused = fakeoutIndices.has(i - 1);
     t += stepDurations[i - 1] + (prevPaused ? fakeoutPauseSec : 0);
-    const arriveSec = i === path.length - 1 ? approachEnd + chaseDurationSec : t;
+    // The last step lands `turnDuration` before the phase's actual end — see the comment on
+    // TURN_TO_FACE_SEC_NORMAL above; the scene holds position and turns to face the target
+    // cell for the remainder, right up to chaseEnd.
+    const arriveSec = i === path.length - 1 ? approachEnd + chaseDurationSec - turnDuration : t;
     chasePath.push({ cell: path[i], arriveSec, fakeoutPause: fakeoutIndices.has(i) });
   }
   return chasePath;

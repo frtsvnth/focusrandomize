@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, Suspense, memo } from 'react';
 import { useAppState } from '../../../state/store';
 import { useSelection } from '../../../hooks/useSelection';
 import { useSoundV2 } from '../../../hooks/useSoundV2';
-import { MECHANIC_META } from '../../../mechanics/adapter';
+import { MECHANIC_META, NEW_MECHANIC_IDS } from '../../../mechanics/adapter';
 import { V1_ADAPTERS } from '../../../mechanics';
 import { V2_ADAPTERS } from '../../../mechanics-v2';
 import AmbientField from '../../../mechanics-v2/engine/AmbientField';
@@ -255,7 +255,7 @@ export default function PresenterModeV2() {
             </div>
           ) : (
             enabledMechanics.map((m) => {
-              const hasV2 = !!V2_ADAPTERS[m];
+              const isNew = NEW_MECHANIC_IDS.has(m);
               return (
                 <button
                   key={m}
@@ -278,7 +278,7 @@ export default function PresenterModeV2() {
                   }}
                 >
                   {MECHANIC_META[m].label}
-                  {hasV2 && (
+                  {isNew && (
                     <span
                       style={{
                         fontSize: 9,

@@ -27,3 +27,10 @@ export const MECHANIC_META: Record<
   tractor: { label: 'Трактор', description: 'Трактор трясёт прицеп на ухабах' },
   hideSeek: { label: 'Стас идет искать', description: 'Ведущий ищет команду в лабиринте' },
 };
+
+/** The most recently added mechanics — drives the "NEW" badge on the presenter tabs. */
+export const NEW_MECHANIC_IDS: ReadonlySet<MechanicId> = new Set<MechanicId>([
+  'toyRace',
+  'tractor',
+  'hideSeek',
+]);

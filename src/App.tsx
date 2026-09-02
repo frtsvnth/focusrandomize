@@ -3,6 +3,7 @@ import { useAppState } from './state/store';
 import PresenterMode from './components/presenter/PresenterMode';
 import PresenterModeV2 from './components/presenter/v2/PresenterModeV2';
 import AdminMode from './components/admin/AdminMode';
+import ReleaseBanner from './components/ReleaseBanner';
 
 function Router() {
   const { state, dispatch } = useAppState();
@@ -31,6 +32,7 @@ function Router() {
 
   return (
     <div className="gradient-bg" style={{ minHeight: '100vh' }}>
+      <ReleaseBanner />
       {state.ui.mode === 'admin' ? (
         <AdminMode />
       ) : state.settings.engineVersion === 'v2' ? (

@@ -264,3 +264,45 @@ input:focus, select:focus, textarea:focus {
 ::-webkit-scrollbar-thumb:hover {
   background: #475569;
 }
+
+@keyframes release-banner-in {
+  from { opacity: 0; transform: translate(-50%, -24px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.release-banner {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  width: min(760px, calc(100% - 24px));
+  animation: release-banner-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.release-banner a:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px var(--accent-glow);
+}
+
+.release-banner .release-shine {
+  position: absolute;
+  top: 0;
+  left: -160%;
+  width: 55%;
+  height: 100%;
+  background: linear-gradient(105deg, transparent, rgba(255,255,255,0.14), transparent);
+  animation: release-shine 3.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes release-shine {
+  0% { left: -160%; }
+  55%, 100% { left: 160%; }
+}
+
+@media (max-width: 560px) {
+  .release-banner .release-hide-mobile {
+    display: none;
+  }
+}
